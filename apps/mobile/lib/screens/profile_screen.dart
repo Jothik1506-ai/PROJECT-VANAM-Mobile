@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../theme/theme_controller.dart';
 import '../theme/tokens.dart';
+import '../widgets/vanam_logo.dart';
 
 /// Profile screen — PREVIEW ONLY.
 ///
@@ -19,6 +21,8 @@ class ProfileScreen extends StatelessWidget {
           children: [
             const _ProfileHeader(),
             const SizedBox(height: VanamSpacing.lg),
+            const _ThemeModeSetting(),
+            const SizedBox(height: VanamSpacing.md),
             const _PrivacySummary(),
             const SizedBox(height: VanamSpacing.md),
             const _ProfileMenuList(),
@@ -35,14 +39,15 @@ class _ProfileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.vanam;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(
         vertical: VanamSpacing.xl,
         horizontal: VanamSpacing.lg,
       ),
-      decoration: const BoxDecoration(
-        color: VanamColors.brand,
+      decoration: BoxDecoration(
+        color: palette.brand,
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(VanamRadii.card),
           bottomRight: Radius.circular(VanamRadii.card),
@@ -60,10 +65,7 @@ class _ProfileHeader extends StatelessWidget {
                 BorderSide(color: Colors.white, width: 2),
               ),
             ),
-            child: Image.asset(
-              'assets/brand/Final.png',
-              fit: BoxFit.contain,
-            ),
+            child: const VanamLogo(size: 84),
           ),
           const SizedBox(height: VanamSpacing.md),
           const Text(
@@ -77,7 +79,10 @@ class _ProfileHeader extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             'Family member · Vanam',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13),
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.8),
+              fontSize: 13,
+            ),
           ),
           const SizedBox(height: VanamSpacing.md),
           OutlinedButton(
@@ -101,28 +106,108 @@ class _ProfileHeader extends StatelessWidget {
   }
 }
 
-class _PrivacySummary extends StatelessWidget {
-  const _PrivacySummary();
+class _ThemeModeSetting extends StatelessWidget {
+  const _ThemeModeSetting();
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.vanam;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: VanamSpacing.md),
       child: Container(
         padding: const EdgeInsets.all(VanamSpacing.md),
         decoration: BoxDecoration(
-          color: VanamColors.brand.withValues(alpha: 0.08),
+          color: palette.surfaceCard,
           borderRadius: BorderRadius.circular(VanamRadii.card),
-          border: Border.all(color: VanamColors.brand.withValues(alpha: 0.14)),
+          border: Border.all(color: palette.line),
         ),
-        child: const Row(
+        child: ValueListenableBuilder<ThemeMode>(
+          valueListenable: vanamThemeMode,
+          builder: (context, selectedMode, child) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.dark_mode_outlined, color: palette.brand),
+                    const SizedBox(width: VanamSpacing.sm),
+                    Text(
+                      'Dark Mode',
+                      style: TextStyle(
+                        color: palette.ink,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      themeModeLabel(selectedMode),
+                      style: TextStyle(color: palette.inkMuted, fontSize: 12),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: VanamSpacing.md),
+                SegmentedButton<ThemeMode>(
+                  segments: const [
+                    ButtonSegment(
+                      value: ThemeMode.system,
+                      icon: Icon(Icons.phone_android_outlined),
+                      label: Text('System'),
+                    ),
+                    ButtonSegment(
+                      value: ThemeMode.light,
+                      icon: Icon(Icons.light_mode_outlined),
+                      label: Text('Light'),
+                    ),
+                    ButtonSegment(
+                      value: ThemeMode.dark,
+                      icon: Icon(Icons.dark_mode_outlined),
+                      label: Text('Dark'),
+                    ),
+                  ],
+                  selected: {selectedMode},
+                  onSelectionChanged: (selection) {
+                    vanamThemeMode.value = selection.first;
+                  },
+                  style: ButtonStyle(
+                    visualDensity: VisualDensity.compact,
+                    side: WidgetStatePropertyAll(
+                      BorderSide(color: palette.line),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _PrivacySummary extends StatelessWidget {
+  const _PrivacySummary();
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.vanam;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: VanamSpacing.md),
+      child: Container(
+        padding: const EdgeInsets.all(VanamSpacing.md),
+        decoration: BoxDecoration(
+          color: palette.noticeSurface,
+          borderRadius: BorderRadius.circular(VanamRadii.card),
+          border: Border.all(color: palette.noticeBorder),
+        ),
+        child: Row(
           children: [
-            Icon(Icons.lock_outline, color: VanamColors.brand),
-            SizedBox(width: VanamSpacing.sm),
+            Icon(Icons.lock_outline, color: palette.brand),
+            const SizedBox(width: VanamSpacing.sm),
             Expanded(
               child: Text(
                 'Messages are planned as end-to-end encrypted in V1.',
-                style: TextStyle(color: VanamColors.brandDark, fontSize: 13),
+                style: TextStyle(color: palette.brandStrong, fontSize: 13),
               ),
             ),
           ],
@@ -145,13 +230,14 @@ class _ProfileMenuList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.vanam;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: VanamSpacing.md),
       child: Column(
         children: [
           for (final item in _items) ...[
             _ProfileMenuTile(icon: item.icon, label: item.label),
-            const Divider(height: 1, color: VanamColors.line),
+            Divider(height: 1, color: palette.line),
           ],
         ],
       ),
@@ -167,6 +253,7 @@ class _ProfileMenuTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.vanam;
     return InkWell(
       onTap: () {},
       child: Padding(
@@ -177,23 +264,19 @@ class _ProfileMenuTile extends StatelessWidget {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: VanamColors.brand.withValues(alpha: 0.1),
+                color: palette.noticeSurface,
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 18, color: VanamColors.brand),
+              child: Icon(icon, size: 18, color: palette.brand),
             ),
             const SizedBox(width: VanamSpacing.md),
             Expanded(
               child: Text(
                 label,
-                style: const TextStyle(fontSize: 15, color: VanamColors.ink),
+                style: TextStyle(fontSize: 15, color: palette.ink),
               ),
             ),
-            const Icon(
-              Icons.chevron_right,
-              color: VanamColors.inkMuted,
-              size: 20,
-            ),
+            Icon(Icons.chevron_right, color: palette.inkMuted, size: 20),
           ],
         ),
       ),

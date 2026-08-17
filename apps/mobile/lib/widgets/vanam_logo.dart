@@ -12,12 +12,19 @@ class VanamLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Decode at the size it's actually shown at (times device pixel ratio),
+    // not at the source's full 640x640 — avoids wasted decode/memory work
+    // on every rebuild.
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cachePx = (size * dpr).round();
     return SizedBox(
       width: size,
       height: size,
       child: Image.asset(
         'assets/brand/Final.png',
         fit: BoxFit.contain,
+        cacheWidth: cachePx,
+        cacheHeight: cachePx,
       ),
     );
   }

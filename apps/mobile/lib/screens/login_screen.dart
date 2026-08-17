@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/tokens.dart';
+import '../widgets/feedback_button.dart';
 import '../widgets/vanam_logo.dart';
 
 /// Login screen — invite code + PIN only.
@@ -63,7 +64,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.vanam;
     return Scaffold(
+      floatingActionButton: const FeedbackButton(screen: 'Login'),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -102,10 +105,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                       decoration: const InputDecoration(
                         hintText: 'Invite code',
-                        prefixIcon: Icon(
-                          Icons.confirmation_number_outlined,
-                          color: VanamColors.brand,
-                        ),
+                        prefixIcon: Icon(Icons.confirmation_number_outlined),
                       ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
@@ -125,16 +125,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                       decoration: InputDecoration(
                         hintText: 'PIN',
-                        prefixIcon: const Icon(
-                          Icons.lock_outline,
-                          color: VanamColors.brand,
-                        ),
+                        prefixIcon: const Icon(Icons.lock_outline),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscurePin
                                 ? Icons.visibility_outlined
                                 : Icons.visibility_off_outlined,
-                            color: VanamColors.inkMuted,
+                            color: palette.inkMuted,
                           ),
                           onPressed: () =>
                               setState(() => _obscurePin = !_obscurePin),
@@ -151,10 +148,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: VanamSpacing.sm),
                       Text(
                         _errorText!,
-                        style: const TextStyle(
-                          color: VanamColors.danger,
-                          fontSize: 13,
-                        ),
+                        style: TextStyle(color: palette.danger, fontSize: 13),
                       ),
                     ],
                     const SizedBox(height: VanamSpacing.lg),
@@ -177,12 +171,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     Text.rich(
                       TextSpan(
                         style: Theme.of(context).textTheme.bodyMedium,
-                        children: const [
-                          TextSpan(text: 'Need an invite? '),
+                        children: [
+                          const TextSpan(text: 'Need an invite? '),
                           TextSpan(
                             text: 'Contact your family admin.',
                             style: TextStyle(
-                              color: VanamColors.brand,
+                              color: palette.brand,
                               fontWeight: FontWeight.w600,
                             ),
                           ),

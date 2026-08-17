@@ -4,6 +4,7 @@ import '../screens/coming_soon_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/messages_screen.dart';
 import '../screens/profile_screen.dart';
+import '../widgets/feedback_button.dart';
 import '../widgets/vanam_bottom_nav.dart';
 
 /// UI-only preview of the full four-tab app shell (Home/Reels/Messages/
@@ -28,10 +29,13 @@ class _PreviewShellState extends State<PreviewShell> {
     ProfileScreen(),
   ];
 
+  static const _screenLabels = ['Reels', 'Messages', 'Home', 'Profile'];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(index: _index, children: _screens),
+      floatingActionButton: FeedbackButton(screen: _screenLabels[_index]),
       bottomNavigationBar: VanamBottomNav(
         currentIndex: _index,
         onTap: (i) => setState(() => _index = i),

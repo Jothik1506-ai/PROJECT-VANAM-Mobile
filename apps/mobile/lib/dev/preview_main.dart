@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme/theme_controller.dart';
 import '../theme/tokens.dart';
 import 'preview_login_gate.dart';
 
@@ -18,11 +19,18 @@ class VanamPreviewApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Vanam (Preview)',
-      debugShowCheckedModeBanner: false,
-      theme: buildVanamTheme(),
-      home: const PreviewLoginGate(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: vanamThemeMode,
+      builder: (context, themeMode, child) {
+        return MaterialApp(
+          title: 'Vanam (Preview)',
+          debugShowCheckedModeBanner: false,
+          theme: buildVanamTheme(),
+          darkTheme: buildVanamTheme(brightness: Brightness.dark),
+          themeMode: themeMode,
+          home: const PreviewLoginGate(),
+        );
+      },
     );
   }
 }

@@ -5,6 +5,7 @@ import '../models/post.dart';
 import '../theme/tokens.dart';
 import '../widgets/post_card.dart';
 import '../widgets/story_avatar.dart';
+import '../widgets/vanam_logo.dart';
 
 /// Home feed screen — PREVIEW ONLY.
 /// ARCHITECTURE.md Section 9 defers Home Feed to Phase 3. This screen uses
@@ -15,12 +16,13 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.vanam;
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
             _HomeAppBar(),
-            const Divider(height: 1, color: VanamColors.line),
+            Divider(height: 1, color: palette.line),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.all(VanamSpacing.md),
@@ -39,16 +41,17 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: VanamSpacing.lg),
-                  const Text(
+                  Text(
                     'Family Updates',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
-                      color: VanamColors.ink,
+                      color: palette.ink,
                     ),
                   ),
                   const SizedBox(height: VanamSpacing.md),
-                  for (final post in mockPosts) PostCard(post: post),
+                  for (final post in mockPosts)
+                    RepaintBoundary(child: PostCard(post: post)),
                 ],
               ),
             ),
@@ -64,6 +67,7 @@ class _HomeAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.vanam;
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: VanamSpacing.md,
@@ -71,41 +75,38 @@ class _HomeAppBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SizedBox(
-            width: 40,
-            height: 40,
-            child: Image.asset(
-              'assets/brand/Final.png',
-              fit: BoxFit.contain,
-            ),
-          ),
+          const VanamLogo(size: 40),
           const SizedBox(width: VanamSpacing.sm),
-          const Column(
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Vanam',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+                style: TextStyle(
+                  color: palette.ink,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18,
+                ),
               ),
               Text(
                 'Family Hub',
-                style: TextStyle(fontSize: 12, color: VanamColors.inkMuted),
+                style: TextStyle(fontSize: 12, color: palette.inkMuted),
               ),
             ],
           ),
           const Spacer(),
           IconButton(
             onPressed: () {},
-            icon: const Icon(Icons.search, color: VanamColors.ink),
+            icon: Icon(Icons.search, color: palette.ink),
           ),
           Stack(
             clipBehavior: Clip.none,
             children: [
               IconButton(
                 onPressed: () {},
-                icon: const Icon(
+                icon: Icon(
                   Icons.notifications_none_rounded,
-                  color: VanamColors.ink,
+                  color: palette.ink,
                 ),
               ),
               Positioned(
@@ -114,8 +115,8 @@ class _HomeAppBar extends StatelessWidget {
                 child: Container(
                   width: 8,
                   height: 8,
-                  decoration: const BoxDecoration(
-                    color: VanamColors.danger,
+                  decoration: BoxDecoration(
+                    color: palette.danger,
                     shape: BoxShape.circle,
                   ),
                 ),

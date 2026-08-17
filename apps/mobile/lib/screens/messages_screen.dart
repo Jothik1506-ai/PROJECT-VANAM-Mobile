@@ -14,6 +14,7 @@ class MessagesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.vanam;
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -27,34 +28,27 @@ class MessagesScreen extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Messages',
                       style: TextStyle(
                         fontSize: 26,
                         fontWeight: FontWeight.w700,
-                        color: VanamColors.ink,
+                        color: palette.ink,
                       ),
                     ),
                   ),
                   Container(
                     width: 40,
                     height: 40,
-                    decoration: const BoxDecoration(
-                      color: VanamColors.surfaceCard,
+                    decoration: BoxDecoration(
+                      color: palette.surfaceCard,
                       shape: BoxShape.circle,
                       boxShadow: [
-                        BoxShadow(
-                          color: Color(0x14000000),
-                          blurRadius: 6,
-                        ),
+                        BoxShadow(color: palette.shadow, blurRadius: 6),
                       ],
                     ),
-                    child: const Icon(
-                      Icons.search,
-                      color: VanamColors.ink,
-                      size: 20,
-                    ),
+                    child: Icon(Icons.search, color: palette.ink, size: 20),
                   ),
                 ],
               ),
@@ -71,14 +65,15 @@ class MessagesScreen extends StatelessWidget {
             Expanded(
               child: ListView.separated(
                 itemCount: mockConversations.length,
-                separatorBuilder: (context, index) => const Divider(
+                separatorBuilder: (context, index) => Divider(
                   height: 1,
                   indent: VanamSpacing.md,
                   endIndent: VanamSpacing.md,
-                  color: VanamColors.line,
+                  color: palette.line,
                 ),
-                itemBuilder: (context, i) =>
-                    ConversationTile(conversation: mockConversations[i]),
+                itemBuilder: (context, i) => RepaintBoundary(
+                  child: ConversationTile(conversation: mockConversations[i]),
+                ),
               ),
             ),
           ],
@@ -92,22 +87,23 @@ class _EncryptedNotice extends StatelessWidget {
   const _EncryptedNotice();
   @override
   Widget build(BuildContext context) {
+    final palette = context.vanam;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(VanamSpacing.md),
       decoration: BoxDecoration(
-        color: VanamColors.brand.withValues(alpha: 0.08),
+        color: palette.noticeSurface,
         borderRadius: BorderRadius.circular(VanamRadii.card),
-        border: Border.all(color: VanamColors.brand.withValues(alpha: 0.14)),
+        border: Border.all(color: palette.noticeBorder),
       ),
-      child: const Row(
+      child: Row(
         children: [
-          Icon(Icons.lock_outline, color: VanamColors.brand, size: 18),
-          SizedBox(width: VanamSpacing.sm),
+          Icon(Icons.lock_outline, color: palette.brand, size: 18),
+          const SizedBox(width: VanamSpacing.sm),
           Expanded(
             child: Text(
               'Messages preview. V1 will use one encrypted family group.',
-              style: TextStyle(color: VanamColors.brandDark, fontSize: 13),
+              style: TextStyle(color: palette.brandStrong, fontSize: 13),
             ),
           ),
         ],

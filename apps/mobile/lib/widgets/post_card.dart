@@ -12,12 +12,13 @@ class PostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.vanam;
     return Container(
       margin: const EdgeInsets.only(bottom: VanamSpacing.md),
       decoration: BoxDecoration(
-        color: VanamColors.surfaceCard,
+        color: palette.surfaceCard,
         borderRadius: BorderRadius.circular(VanamRadii.card),
-        border: Border.all(color: VanamColors.line),
+        border: Border.all(color: palette.line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -39,22 +40,19 @@ class PostCard extends StatelessWidget {
                     children: [
                       Text(
                         post.authorName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w600,
-                          color: VanamColors.ink,
+                          color: palette.ink,
                         ),
                       ),
                       Text(
                         post.timeAgo,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: VanamColors.inkMuted,
-                        ),
+                        style: TextStyle(fontSize: 12, color: palette.inkMuted),
                       ),
                     ],
                   ),
                 ),
-                const Icon(Icons.more_horiz, color: VanamColors.inkMuted),
+                Icon(Icons.more_horiz, color: palette.inkMuted),
               ],
             ),
           ),
@@ -69,7 +67,7 @@ class PostCard extends StatelessWidget {
               VanamSpacing.md,
               VanamSpacing.xs,
             ),
-            child: Text(post.caption, style: const TextStyle(color: VanamColors.ink)),
+            child: Text(post.caption, style: TextStyle(color: palette.ink)),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -80,29 +78,23 @@ class PostCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(
-                  Icons.favorite_border,
-                  size: 20,
-                  color: VanamColors.ink,
-                ),
+                Icon(Icons.favorite_border, size: 20, color: palette.ink),
                 const SizedBox(width: 4),
-                Text('${post.likeCount}', style: const TextStyle(fontSize: 13)),
-                const SizedBox(width: VanamSpacing.md),
-                const Icon(
-                  Icons.mode_comment_outlined,
-                  size: 20,
-                  color: VanamColors.ink,
+                Text(
+                  '${post.likeCount}',
+                  style: TextStyle(fontSize: 13, color: palette.ink),
                 ),
-                const SizedBox(width: 4),
-                Text('${post.commentCount}', style: const TextStyle(fontSize: 13)),
                 const SizedBox(width: VanamSpacing.md),
-                const Icon(Icons.send_outlined, size: 20, color: VanamColors.ink),
+                Icon(Icons.mode_comment_outlined, size: 20, color: palette.ink),
+                const SizedBox(width: 4),
+                Text(
+                  '${post.commentCount}',
+                  style: TextStyle(fontSize: 13, color: palette.ink),
+                ),
+                const SizedBox(width: VanamSpacing.md),
+                Icon(Icons.send_outlined, size: 20, color: palette.ink),
                 const Spacer(),
-                const Icon(
-                  Icons.bookmark_border,
-                  size: 20,
-                  color: VanamColors.ink,
-                ),
+                Icon(Icons.bookmark_border, size: 20, color: palette.ink),
               ],
             ),
           ),
@@ -119,28 +111,25 @@ class _MemoryPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.vanam;
     return Container(
       alignment: Alignment.center,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFFDDEAD7), Color(0xFFFFF1D2)],
+          colors: palette.memoryGradient,
         ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
-            Icons.photo_camera_outlined,
-            color: VanamColors.brand,
-            size: 34,
-          ),
+          Icon(Icons.photo_camera_outlined, color: palette.brand, size: 34),
           const SizedBox(height: VanamSpacing.xs),
           Text(
             label,
-            style: const TextStyle(
-              color: VanamColors.brandDark,
+            style: TextStyle(
+              color: palette.brandStrong,
               fontWeight: FontWeight.w700,
             ),
           ),

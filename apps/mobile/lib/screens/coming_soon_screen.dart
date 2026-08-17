@@ -10,6 +10,7 @@ class ComingSoonScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.vanam;
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -18,32 +19,28 @@ class ComingSoonScreen extends StatelessWidget {
             margin: const EdgeInsets.all(VanamSpacing.lg),
             padding: const EdgeInsets.all(VanamSpacing.xl),
             decoration: BoxDecoration(
-              color: VanamColors.surfaceCard,
+              color: palette.surfaceCard,
               borderRadius: BorderRadius.circular(VanamRadii.card),
-              border: Border.all(color: VanamColors.line),
+              border: Border.all(color: palette.line),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.forest_outlined,
-                  color: VanamColors.brand,
-                  size: 42,
-                ),
+                Icon(Icons.forest_outlined, color: palette.brand, size: 42),
                 const SizedBox(height: VanamSpacing.md),
                 Text(
                   label,
-                  style: const TextStyle(
-                    color: VanamColors.ink,
+                  style: TextStyle(
+                    color: palette.ink,
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: VanamSpacing.sm),
-                const Text(
+                Text(
                   'Planned for a later phase',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: VanamColors.inkMuted),
+                  style: TextStyle(color: palette.inkMuted),
                 ),
               ],
             ),

@@ -9,7 +9,11 @@ import '../theme/tokens.dart';
 /// exists so all four planned tabs can be reviewed together; do not wire it
 /// into the real V1 app (lib/main.dart) until Phase 3 is scheduled.
 class VanamBottomNav extends StatelessWidget {
-  const VanamBottomNav({super.key, required this.currentIndex, required this.onTap});
+  const VanamBottomNav({
+    super.key,
+    required this.currentIndex,
+    required this.onTap,
+  });
 
   final int currentIndex;
   final ValueChanged<int> onTap;
@@ -23,10 +27,11 @@ class VanamBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.vanam;
     return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: VanamColors.surfaceCard,
-        border: Border(top: BorderSide(color: VanamColors.line)),
+      decoration: BoxDecoration(
+        color: palette.surfaceCard,
+        border: Border(top: BorderSide(color: palette.line)),
       ),
       child: SafeArea(
         top: false,
@@ -54,7 +59,11 @@ class VanamBottomNav extends StatelessWidget {
 }
 
 class _NavItem extends StatelessWidget {
-  const _NavItem({required this.icon, required this.label, required this.selected});
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+  });
 
   final IconData icon;
   final String label;
@@ -62,7 +71,8 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? VanamColors.brand : VanamColors.inkMuted;
+    final palette = context.vanam;
+    final color = selected ? palette.brand : palette.inkMuted;
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [

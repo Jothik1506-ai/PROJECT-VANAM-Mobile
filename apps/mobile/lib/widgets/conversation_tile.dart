@@ -14,6 +14,7 @@ class ConversationTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasUnread = conversation.unreadCount > 0;
+    final palette = context.vanam;
     return InkWell(
       onTap: () {},
       child: Padding(
@@ -31,9 +32,9 @@ class ConversationTile extends StatelessWidget {
                 children: [
                   Text(
                     conversation.name,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: VanamColors.ink,
+                      color: palette.ink,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -41,10 +42,7 @@ class ConversationTile extends StatelessWidget {
                     conversation.status,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: VanamColors.inkMuted,
-                    ),
+                    style: TextStyle(fontSize: 13, color: palette.inkMuted),
                   ),
                 ],
               ),
@@ -55,10 +53,7 @@ class ConversationTile extends StatelessWidget {
               children: [
                 Text(
                   conversation.timeLabel,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: VanamColors.inkMuted,
-                  ),
+                  style: TextStyle(fontSize: 11, color: palette.inkMuted),
                 ),
                 const SizedBox(height: VanamSpacing.xs),
                 if (hasUnread) _UnreadBadge(count: conversation.unreadCount),
@@ -78,14 +73,12 @@ class _UnreadBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.vanam;
     return Container(
       width: 20,
       height: 20,
       alignment: Alignment.center,
-      decoration: const BoxDecoration(
-        color: VanamColors.brand,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: palette.brand, shape: BoxShape.circle),
       child: Text(
         '$count',
         style: const TextStyle(
