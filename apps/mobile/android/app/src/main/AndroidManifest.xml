@@ -1,6 +1,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Fetch the update manifest and download APKs. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Required for OTA self-update: VANAM is distributed outside the Play
+         Store (see docs/OTA-RELEASES.md), so the app must be able to hand a
+         downloaded APK to the system package installer. The user still
+         confirms every install at the OS level. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+
     <application
-        android:label="vanam_mobile"
+        android:label="Vanam"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

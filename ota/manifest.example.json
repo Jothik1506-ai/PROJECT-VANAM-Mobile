@@ -1,0 +1,20 @@
+{
+  "_comment": "Example of the update manifest served at updates.vanam.aivafreelancia.in/manifest.json. See docs/OTA-RELEASES.md section 4. Keep the cache TTL at 5 minutes or less so a forced update actually propagates.",
+
+  "latestVersionCode": 2,
+  "latestVersionName": "1.0.1",
+
+  "_comment_minSupported": "Installed builds BELOW this code get an undismissable update prompt. Leave it at the oldest still-acceptable build; raise it only to push a security fix.",
+  "minSupportedVersionCode": 1,
+
+  "_comment_apkUrl": "Immutable, version-stamped filename. Never overwrite a published APK — roll forward to a new versionCode instead.",
+  "apkUrl": "https://updates.vanam.aivafreelancia.in/vanam-1.0.1-2.apk",
+
+  "_comment_sha256": "sha256sum of the APK. The app verifies this before handing the file to the installer and refuses a mismatch.",
+  "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+
+  "sizeBytes": 24117248,
+  "releaseNotes": "Faster message loading and a fix for Telugu text wrapping.",
+  "releaseNotesTe": "సందేశాలు వేగంగా లోడ్ అవుతాయి.",
+  "publishedAt": "2026-08-17T18:00:00Z"
+}

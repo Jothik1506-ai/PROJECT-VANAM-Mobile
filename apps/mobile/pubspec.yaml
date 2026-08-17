@@ -35,6 +35,14 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
+  # OTA self-update (see docs/OTA-RELEASES.md). VANAM ships outside the Play
+  # Store, so the app must be able to update itself.
+  http: ^1.2.2 # fetch update manifest + download APK
+  package_info_plus: ^8.1.1 # read installed versionCode
+  path_provider: ^2.1.5 # somewhere to write the downloaded APK
+  crypto: ^3.0.6 # SHA-256 verification of the download
+  open_filex: ^4.5.0 # hand the APK to the system package installer
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
