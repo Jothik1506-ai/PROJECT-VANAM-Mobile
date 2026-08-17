@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/post.dart';
 import '../theme/tokens.dart';
+import 'member_avatar.dart';
 
 /// Preview-only widget — Home Feed is Phase 3 (ARCHITECTURE.md Section 9).
 class PostCard extends StatelessWidget {
@@ -30,14 +31,7 @@ class PostCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                SizedBox(
-                  width: 36,
-                  height: 36,
-                  child: Image.asset(
-                    'assets/brand/Final.png',
-                    fit: BoxFit.contain,
-                  ),
-                ),
+                MemberAvatar(name: post.authorName, size: 36),
                 const SizedBox(width: VanamSpacing.sm),
                 Expanded(
                   child: Column(
@@ -64,11 +58,10 @@ class PostCard extends StatelessWidget {
               ],
             ),
           ),
-          if (post.hasImage)
-            AspectRatio(
-              aspectRatio: 4 / 3,
-              child: Container(color: const Color(0xFFCFE0CE)),
-            ),
+          AspectRatio(
+            aspectRatio: 4 / 3,
+            child: _MemoryPreview(label: post.mood),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(
               VanamSpacing.md,
@@ -111,6 +104,44 @@ class PostCard extends StatelessWidget {
                   color: VanamColors.ink,
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MemoryPreview extends StatelessWidget {
+  const _MemoryPreview({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFDDEAD7), Color(0xFFFFF1D2)],
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.photo_camera_outlined,
+            color: VanamColors.brand,
+            size: 34,
+          ),
+          const SizedBox(height: VanamSpacing.xs),
+          Text(
+            label,
+            style: const TextStyle(
+              color: VanamColors.brandDark,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],

@@ -5,7 +5,7 @@ class Post {
     required this.caption,
     required this.likeCount,
     required this.commentCount,
-    this.hasImage = true,
+    required this.mood,
   });
 
   final String authorName;
@@ -13,7 +13,7 @@ class Post {
   final String caption;
   final int likeCount;
   final int commentCount;
-  final bool hasImage;
+  final String mood;
 }
 
 /// Mock data for UI preview only — not wired to any backend.
@@ -26,6 +26,7 @@ const mockPosts = [
         'Sunday lunch at home — everyone finally together after so long! 🌿',
     likeCount: 12,
     commentCount: 4,
+    mood: 'Family Lunch',
   ),
   Post(
     authorName: 'Nanna',
@@ -33,5 +34,6 @@ const mockPosts = [
     caption: 'Evening walk in the garden. Peaceful.',
     likeCount: 8,
     commentCount: 2,
+    mood: 'Garden Walk',
   ),
 ];

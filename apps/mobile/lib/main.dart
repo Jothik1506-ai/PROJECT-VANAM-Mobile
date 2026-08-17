@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'dev/preview_login_gate.dart';
+import 'screens/login_screen.dart';
 import 'theme/tokens.dart';
 
 void main() {
@@ -16,14 +16,9 @@ class VanamApp extends StatelessWidget {
       title: 'Vanam',
       debugShowCheckedModeBanner: false,
       theme: buildVanamTheme(),
-      // TEMPORARY: PreviewLoginGate accepts any invite code + PIN (there is
-      // no backend yet) and navigates straight into the tab shell, purely
-      // so the screens can be clicked through end-to-end during design.
-      // TODO(codex): replace with real Splash -> auth-check -> Chat List
-      // routing once /auth/login and SessionManager exist
-      // (ARCHITECTURE.md Section 4/5/11A/11B). At that point this should
-      // go back to plain LoginScreen with no forced navigation.
-      home: const PreviewLoginGate(),
+      // Real V1 entry point: invite code + PIN login only.
+      // Use lib/dev/preview_main.dart for the click-through preview shell.
+      home: const LoginScreen(),
     );
   }
 }

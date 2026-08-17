@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/tokens.dart';
+import 'member_avatar.dart';
 
 /// One avatar bubble in the family row at the top of Home.
 /// Preview-only widget — Home Feed is Phase 3 (ARCHITECTURE.md Section 9).
@@ -13,21 +14,7 @@ class StoryAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Container(
-          width: 56,
-          height: 56,
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.fromBorderSide(
-              BorderSide(color: VanamColors.brand, width: 2),
-            ),
-          ),
-          padding: const EdgeInsets.all(2),
-          child: Image.asset(
-            'assets/brand/Final.png',
-            fit: BoxFit.contain,
-          ),
-        ),
+        MemberAvatar(name: name, size: 56),
         const SizedBox(height: VanamSpacing.xs),
         Text(
           name,

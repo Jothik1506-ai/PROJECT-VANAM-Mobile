@@ -4,12 +4,8 @@ import '../theme/tokens.dart';
 
 /// Profile screen — PREVIEW ONLY.
 ///
-/// Matches the approved visual mockup, but note: ARCHITECTURE.md's locked
-/// V1 "Simple Profile" spec (Section 1/8) is just name + avatar + language,
-/// no post/family counts, no bio. The Posts/Family stat row here and
-/// "WiFi Calling Settings" (which depends on Phase 2 calling, not built)
-/// are shown for visual review only — mock data, not wired to anything.
-/// The real V1 profile edit form is separate, smaller-scoped work.
+/// Preview profile with the VANAM logo kept as the hero mark.
+/// Real V1 keeps profile settings simple: name, avatar, language, privacy.
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
@@ -23,8 +19,8 @@ class ProfileScreen extends StatelessWidget {
           children: [
             const _ProfileHeader(),
             const SizedBox(height: VanamSpacing.lg),
-            const _StatsRow(),
-            const SizedBox(height: VanamSpacing.sm),
+            const _PrivacySummary(),
+            const SizedBox(height: VanamSpacing.md),
             const _ProfileMenuList(),
             const SizedBox(height: VanamSpacing.xl),
           ],
@@ -71,7 +67,7 @@ class _ProfileHeader extends StatelessWidget {
           ),
           const SizedBox(height: VanamSpacing.md),
           const Text(
-            'Jothik Krishna', // mock — real V1 profile pulls this from login
+            'Your Profile',
             style: TextStyle(
               color: Colors.white,
               fontSize: 20,
@@ -80,7 +76,7 @@ class _ProfileHeader extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            'Family Admin · Vanam',
+            'Family member · Vanam',
             style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13),
           ),
           const SizedBox(height: VanamSpacing.md),
@@ -105,44 +101,33 @@ class _ProfileHeader extends StatelessWidget {
   }
 }
 
-class _StatsRow extends StatelessWidget {
-  const _StatsRow();
+class _PrivacySummary extends StatelessWidget {
+  const _PrivacySummary();
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _StatItem(value: '38', label: 'Posts'),
-        _StatItem(value: '12', label: 'Family'),
-      ],
-    );
-  }
-}
-
-class _StatItem extends StatelessWidget {
-  const _StatItem({required this.value, required this.label});
-
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-            color: VanamColors.ink,
-          ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: VanamSpacing.md),
+      child: Container(
+        padding: const EdgeInsets.all(VanamSpacing.md),
+        decoration: BoxDecoration(
+          color: VanamColors.brand.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(VanamRadii.card),
+          border: Border.all(color: VanamColors.brand.withValues(alpha: 0.14)),
         ),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12, color: VanamColors.inkMuted),
+        child: const Row(
+          children: [
+            Icon(Icons.lock_outline, color: VanamColors.brand),
+            SizedBox(width: VanamSpacing.sm),
+            Expanded(
+              child: Text(
+                'Messages are planned as end-to-end encrypted in V1.',
+                style: TextStyle(color: VanamColors.brandDark, fontSize: 13),
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
@@ -152,7 +137,7 @@ class _ProfileMenuList extends StatelessWidget {
 
   static const _items = [
     (icon: Icons.person_outline, label: 'Account Details'),
-    (icon: Icons.wifi_calling_3_outlined, label: 'WiFi Calling Settings'),
+    (icon: Icons.translate_outlined, label: 'Language'),
     (icon: Icons.notifications_none_rounded, label: 'Notifications'),
     (icon: Icons.lock_outline, label: 'Privacy & Security'),
     (icon: Icons.help_outline, label: 'Help & Support'),

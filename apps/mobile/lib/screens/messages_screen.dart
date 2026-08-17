@@ -8,17 +8,9 @@ import '../widgets/conversation_tile.dart';
 ///
 /// ARCHITECTURE.md's locked V1 messaging model (Section 1/9) is a single
 /// family group with no per-contact DMs and no calling (Phase 2). This
-/// screen shows the fuller Chats/Calls + individual conversations mockup
-/// for visual review; none of it is wired to a backend.
-class MessagesScreen extends StatefulWidget {
+/// screen shows a polished preview list; none of it is wired to a backend.
+class MessagesScreen extends StatelessWidget {
   const MessagesScreen({super.key});
-
-  @override
-  State<MessagesScreen> createState() => _MessagesScreenState();
-}
-
-class _MessagesScreenState extends State<MessagesScreen> {
-  bool _showingChats = true;
 
   @override
   Widget build(BuildContext context) {
@@ -67,32 +59,27 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(VanamSpacing.md),
-              child: _ChatsCallsToggle(
-                showingChats: _showingChats,
-                onChanged: (value) => setState(() => _showingChats = value),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(
+                VanamSpacing.md,
+                VanamSpacing.md,
+                VanamSpacing.md,
+                VanamSpacing.sm,
               ),
+              child: _EncryptedNotice(),
             ),
             Expanded(
-              child: _showingChats
-                  ? ListView.separated(
-                      itemCount: mockConversations.length,
-                      separatorBuilder: (context, index) => const Divider(
-                        height: 1,
-                        indent: VanamSpacing.md,
-                        endIndent: VanamSpacing.md,
-                        color: VanamColors.line,
-                      ),
-                      itemBuilder: (context, i) =>
-                          ConversationTile(conversation: mockConversations[i]),
-                    )
-                  : const Center(
-                      child: Text(
-                        'Call log coming soon',
-                        style: TextStyle(color: VanamColors.inkMuted),
-                      ),
-                    ),
+              child: ListView.separated(
+                itemCount: mockConversations.length,
+                separatorBuilder: (context, index) => const Divider(
+                  height: 1,
+                  indent: VanamSpacing.md,
+                  endIndent: VanamSpacing.md,
+                  color: VanamColors.line,
+                ),
+                itemBuilder: (context, i) =>
+                    ConversationTile(conversation: mockConversations[i]),
+              ),
             ),
           ],
         ),
@@ -101,72 +88,29 @@ class _MessagesScreenState extends State<MessagesScreen> {
   }
 }
 
-class _ChatsCallsToggle extends StatelessWidget {
-  const _ChatsCallsToggle({required this.showingChats, required this.onChanged});
-
-  final bool showingChats;
-  final ValueChanged<bool> onChanged;
-
+class _EncryptedNotice extends StatelessWidget {
+  const _EncryptedNotice();
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(VanamSpacing.md),
       decoration: BoxDecoration(
-        color: VanamColors.brand.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(VanamRadii.button),
+        color: VanamColors.brand.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(VanamRadii.card),
+        border: Border.all(color: VanamColors.brand.withValues(alpha: 0.14)),
       ),
-      padding: const EdgeInsets.all(4),
-      child: Row(
+      child: const Row(
         children: [
+          Icon(Icons.lock_outline, color: VanamColors.brand, size: 18),
+          SizedBox(width: VanamSpacing.sm),
           Expanded(
-            child: _ToggleSegment(
-              label: 'Chats',
-              selected: showingChats,
-              onTap: () => onChanged(true),
-            ),
-          ),
-          Expanded(
-            child: _ToggleSegment(
-              label: 'Calls',
-              selected: !showingChats,
-              onTap: () => onChanged(false),
+            child: Text(
+              'Messages preview. V1 will use one encrypted family group.',
+              style: TextStyle(color: VanamColors.brandDark, fontSize: 13),
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ToggleSegment extends StatelessWidget {
-  const _ToggleSegment({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(vertical: VanamSpacing.sm),
-        decoration: BoxDecoration(
-          color: selected ? VanamColors.surfaceCard : Colors.transparent,
-          borderRadius: BorderRadius.circular(VanamRadii.button - 4),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: selected ? VanamColors.brand : VanamColors.inkMuted,
-          ),
-        ),
       ),
     );
   }

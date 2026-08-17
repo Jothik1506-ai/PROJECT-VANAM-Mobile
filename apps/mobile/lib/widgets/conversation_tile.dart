@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/conversation.dart';
 import '../theme/tokens.dart';
+import 'member_avatar.dart';
 
 /// Preview-only widget — see ARCHITECTURE.md Section 9 (calling is Phase 2,
 /// per-contact DMs are not in V1's single-group model).
@@ -22,11 +23,7 @@ class ConversationTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            SizedBox(
-              width: 44,
-              height: 44,
-              child: Image.asset('assets/brand/Final.png', fit: BoxFit.contain),
-            ),
+            MemberAvatar(name: conversation.name),
             const SizedBox(width: VanamSpacing.md),
             Expanded(
               child: Column(
@@ -41,7 +38,7 @@ class ConversationTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    conversation.lastMessage,
+                    conversation.status,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -64,15 +61,7 @@ class ConversationTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: VanamSpacing.xs),
-                Row(
-                  children: [
-                    if (hasUnread) ...[
-                      _UnreadBadge(count: conversation.unreadCount),
-                      const SizedBox(width: VanamSpacing.xs),
-                    ],
-                    _CallButton(),
-                  ],
-                ),
+                if (hasUnread) _UnreadBadge(count: conversation.unreadCount),
               ],
             ),
           ],
@@ -105,22 +94,6 @@ class _UnreadBadge extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
       ),
-    );
-  }
-}
-
-class _CallButton extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 26,
-      height: 26,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: VanamColors.brand.withValues(alpha: 0.1),
-        shape: BoxShape.circle,
-      ),
-      child: const Icon(Icons.call, size: 13, color: VanamColors.brand),
     );
   }
 }

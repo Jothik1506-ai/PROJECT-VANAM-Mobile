@@ -14,6 +14,18 @@ class VanamColors {
   static const inkMuted = Color(0xFF6B7268); // secondary text
   static const line = Color(0xFFE3DECD); // borders, dividers
   static const danger = Color(0xFFB3261E); // destructive actions only
+  static const avatarPalette = [
+    Color(0xFF1F5D2E),
+    Color(0xFF7B3F2A),
+    Color(0xFF4B6F8F),
+    Color(0xFF7A5C1F),
+    Color(0xFF6B4A7A),
+  ];
+
+  static Color avatarColorFor(String seed) {
+    final hash = seed.codeUnits.fold<int>(0, (value, unit) => value + unit);
+    return avatarPalette[hash % avatarPalette.length];
+  }
 }
 
 class VanamSpacing {
