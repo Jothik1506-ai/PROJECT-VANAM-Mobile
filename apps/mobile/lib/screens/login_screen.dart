@@ -1,0 +1,202 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../theme/tokens.dart';
+import '../widgets/vanam_logo.dart';
+
+/// Login screen — invite code + PIN only.
+/// No password, no Google login, no OTP login, no self-signup: this app has
+/// no open-registration path (see ARCHITECTURE.md, Section 3 / 3a).
+///
+/// [onSubmit] is injected so this widget stays UI-only. Wiring it to the
+/// real `/auth/login` endpoint (ARCHITECTURE.md Section 5) is backend work,
+/// not part of this screen.
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key, this.onSubmit});
+
+  final Future<void> Function(String inviteCode, String pin)? onSubmit;
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _inviteCodeController = TextEditingController();
+  final _pinController = TextEditingController();
+  bool _obscurePin = true;
+  bool _isSubmitting = false;
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _inviteCodeController.dispose();
+    _pinController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSubmit() async {
+    final form = _formKey.currentState;
+    if (form == null || !form.validate()) return;
+
+    setState(() {
+      _isSubmitting = true;
+      _errorText = null;
+    });
+
+    try {
+      if (widget.onSubmit != null) {
+        await widget.onSubmit!(
+          _inviteCodeController.text.trim().toUpperCase(),
+          _pinController.text.trim(),
+        );
+      } else {
+        // No backend wired yet — see ARCHITECTURE.md Section 5/11B.
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+      }
+    } catch (e) {
+      setState(() => _errorText = 'Could not verify invite code or PIN.');
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(
+              horizontal: VanamSpacing.lg,
+              vertical: VanamSpacing.xxl,
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 400),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Center(child: VanamLogo(size: 96)),
+                    const SizedBox(height: VanamSpacing.lg),
+                    Text(
+                      'Welcome to Vanam',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: VanamSpacing.xs),
+                    Text(
+                      'Your family, always connected',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: VanamSpacing.xl),
+                    TextFormField(
+                      controller: _inviteCodeController,
+                      textCapitalization: TextCapitalization.characters,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'[A-Za-z0-9-]'),
+                        ),
+                      ],
+                      decoration: const InputDecoration(
+                        hintText: 'Invite code',
+                        prefixIcon: Icon(
+                          Icons.confirmation_number_outlined,
+                          color: VanamColors.brand,
+                        ),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Enter the invite code your admin shared';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: VanamSpacing.md),
+                    TextFormField(
+                      controller: _pinController,
+                      obscureText: _obscurePin,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(6),
+                      ],
+                      decoration: InputDecoration(
+                        hintText: 'PIN',
+                        prefixIcon: const Icon(
+                          Icons.lock_outline,
+                          color: VanamColors.brand,
+                        ),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePin
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                            color: VanamColors.inkMuted,
+                          ),
+                          onPressed: () =>
+                              setState(() => _obscurePin = !_obscurePin),
+                        ),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().length < 4) {
+                          return 'Enter the PIN your admin gave you';
+                        }
+                        return null;
+                      },
+                    ),
+                    if (_errorText != null) ...[
+                      const SizedBox(height: VanamSpacing.sm),
+                      Text(
+                        _errorText!,
+                        style: const TextStyle(
+                          color: VanamColors.danger,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: VanamSpacing.lg),
+                    ElevatedButton(
+                      onPressed: _isSubmitting ? null : _handleSubmit,
+                      child: _isSubmitting
+                          ? const SizedBox(
+                              height: 22,
+                              width: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                valueColor: AlwaysStoppedAnimation(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                          : const Text('Log In'),
+                    ),
+                    const SizedBox(height: VanamSpacing.lg),
+                    Text.rich(
+                      TextSpan(
+                        style: Theme.of(context).textTheme.bodyMedium,
+                        children: const [
+                          TextSpan(text: 'Need an invite? '),
+                          TextSpan(
+                            text: 'Contact your family admin.',
+                            style: TextStyle(
+                              color: VanamColors.brand,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
