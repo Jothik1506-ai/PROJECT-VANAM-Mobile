@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../profile/profile_controller.dart';
+import '../profile/user_profile.dart';
 import '../theme/theme_controller.dart';
 import '../theme/tokens.dart';
 import '../widgets/vanam_logo.dart';
 
-/// Profile screen — PREVIEW ONLY.
+/// Profile screen.
 ///
-/// Preview profile with the VANAM logo kept as the hero mark.
-/// Real V1 keeps profile settings simple: name, avatar, language, privacy.
+/// Keeps the VANAM logo as the hero mark while saving real local profile
+/// settings that other features can read.
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
@@ -18,15 +20,15 @@ class ProfileScreen extends StatelessWidget {
         bottom: false,
         child: ListView(
           padding: EdgeInsets.zero,
-          children: [
-            const _ProfileHeader(),
-            const SizedBox(height: VanamSpacing.lg),
-            const _ThemeModeSetting(),
-            const SizedBox(height: VanamSpacing.md),
-            const _PrivacySummary(),
-            const SizedBox(height: VanamSpacing.md),
-            const _ProfileMenuList(),
-            const SizedBox(height: VanamSpacing.xl),
+          children: const [
+            _ProfileHeader(),
+            SizedBox(height: VanamSpacing.lg),
+            _ThemeModeSetting(),
+            SizedBox(height: VanamSpacing.md),
+            _PrivacySummary(),
+            SizedBox(height: VanamSpacing.md),
+            _ProfileMenuList(),
+            SizedBox(height: VanamSpacing.xl),
           ],
         ),
       ),
@@ -40,68 +42,159 @@ class _ProfileHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.vanam;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        vertical: VanamSpacing.xl,
-        horizontal: VanamSpacing.lg,
-      ),
-      decoration: BoxDecoration(
-        color: palette.brand,
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(VanamRadii.card),
-          bottomRight: Radius.circular(VanamRadii.card),
-        ),
-      ),
-      child: Column(
+    return ValueListenableBuilder<UserProfile>(
+      valueListenable: profileController,
+      builder: (context, profile, child) {
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(
+            vertical: VanamSpacing.xl,
+            horizontal: VanamSpacing.lg,
+          ),
+          decoration: BoxDecoration(
+            color: palette.brand,
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(VanamRadii.card),
+              bottomRight: Radius.circular(VanamRadii.card),
+            ),
+          ),
+          child: Column(
+            children: [
+              Container(
+                width: 96,
+                height: 96,
+                padding: const EdgeInsets.all(6),
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.fromBorderSide(
+                    BorderSide(color: Colors.white, width: 2),
+                  ),
+                ),
+                child: const VanamLogo(size: 84),
+              ),
+              const SizedBox(height: VanamSpacing.md),
+              Text(
+                profile.displayName,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${profile.language} - Vanam',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.8),
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: VanamSpacing.md),
+              OutlinedButton(
+                onPressed: () => _showEditProfileDialog(context, profile),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white, width: 1.2),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(VanamRadii.button),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: VanamSpacing.lg,
+                    vertical: VanamSpacing.sm,
+                  ),
+                ),
+                child: const Text('Edit Profile'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+Future<void> _showEditProfileDialog(BuildContext context, UserProfile profile) {
+  return showDialog<void>(
+    context: context,
+    builder: (context) => _EditProfileDialog(profile: profile),
+  );
+}
+
+class _EditProfileDialog extends StatefulWidget {
+  const _EditProfileDialog({required this.profile});
+
+  final UserProfile profile;
+
+  @override
+  State<_EditProfileDialog> createState() => _EditProfileDialogState();
+}
+
+class _EditProfileDialogState extends State<_EditProfileDialog> {
+  late final TextEditingController _nameController;
+  late String _language;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.profile.name);
+    _language = widget.profile.language;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) return;
+
+    setState(() => _saving = true);
+    await profileController.save(UserProfile(name: name, language: _language));
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.vanam;
+    return AlertDialog(
+      backgroundColor: palette.surfaceCard,
+      title: Text('Edit Profile', style: TextStyle(color: palette.ink)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 96,
-            height: 96,
-            padding: const EdgeInsets.all(6),
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.fromBorderSide(
-                BorderSide(color: Colors.white, width: 2),
-              ),
-            ),
-            child: const VanamLogo(size: 84),
+          TextField(
+            controller: _nameController,
+            textInputAction: TextInputAction.done,
+            decoration: const InputDecoration(hintText: 'Your name'),
+            onSubmitted: (_) => _save(),
           ),
           const SizedBox(height: VanamSpacing.md),
-          const Text(
-            'Your Profile',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            'Family member · Vanam',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.8),
-              fontSize: 13,
-            ),
-          ),
-          const SizedBox(height: VanamSpacing.md),
-          OutlinedButton(
-            onPressed: () {},
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white,
-              side: const BorderSide(color: Colors.white, width: 1.2),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(VanamRadii.button),
-              ),
-              padding: const EdgeInsets.symmetric(
-                horizontal: VanamSpacing.lg,
-                vertical: VanamSpacing.sm,
-              ),
-            ),
-            child: const Text('Edit Profile'),
+          DropdownButtonFormField<String>(
+            initialValue: _language,
+            decoration: const InputDecoration(hintText: 'Language'),
+            items: const [
+              DropdownMenuItem(value: 'English', child: Text('English')),
+              DropdownMenuItem(value: 'Telugu', child: Text('Telugu')),
+            ],
+            onChanged: (value) {
+              if (value != null) setState(() => _language = value);
+            },
           ),
         ],
       ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          child: Text(_saving ? 'Saving...' : 'Save'),
+        ),
+      ],
     );
   }
 }

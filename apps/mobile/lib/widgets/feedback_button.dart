@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../feedback/work_manager_feedback.dart';
+import '../profile/profile_controller.dart';
 import '../theme/tokens.dart';
 
 class FeedbackButton extends StatelessWidget {
@@ -42,10 +43,18 @@ class _FeedbackDialog extends StatefulWidget {
 
 class _FeedbackDialogState extends State<_FeedbackDialog> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
+  late final TextEditingController _nameController;
   final _feedbackController = TextEditingController();
   bool _isSending = false;
   String? _status;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(
+      text: profileController.value.feedbackName,
+    );
+  }
 
   @override
   void dispose() {

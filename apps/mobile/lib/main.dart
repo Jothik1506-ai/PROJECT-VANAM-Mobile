@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
+import 'profile/profile_controller.dart';
 import 'screens/login_screen.dart';
 import 'theme/theme_controller.dart';
 import 'theme/tokens.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await profileController.load();
   runApp(const VanamApp());
 }
 

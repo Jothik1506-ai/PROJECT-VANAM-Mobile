@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../profile/profile_controller.dart';
 import '../theme/theme_controller.dart';
 import '../theme/tokens.dart';
 import 'preview_login_gate.dart';
@@ -10,7 +11,9 @@ import 'preview_login_gate.dart';
 ///
 /// This is NOT the production entry point — that's lib/main.dart, which
 /// starts at LoginScreen per the locked V1 scope (chat-only, no tab bar).
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await profileController.load();
   runApp(const VanamPreviewApp());
 }
 
