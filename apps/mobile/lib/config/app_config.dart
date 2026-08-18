@@ -24,6 +24,16 @@ class AppConfig {
     defaultValue: true,
   );
 
+  /// Public VANAM web hub used by Home page web update cards.
+  ///
+  /// Override this when the Cloudflare custom domain is final:
+  ///   flutter build apk --release \
+  ///     --dart-define=VANAM_WEB_BASE_URL=https://your-domain.example
+  static const vanamWebBaseUrl = String.fromEnvironment(
+    'VANAM_WEB_BASE_URL',
+    defaultValue: 'https://project-vanam.pages.dev',
+  );
+
   /// Supabase project (ARCHITECTURE.md Section 5, supabase/schema.sql).
   ///
   /// The anon key is safe to embed — it grants nothing by itself; Row Level

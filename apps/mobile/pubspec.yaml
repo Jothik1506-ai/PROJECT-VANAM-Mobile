@@ -41,6 +41,7 @@ dependencies:
   # OTA self-update (see docs/OTA-RELEASES.md). VANAM ships outside the Play
   # Store, so the app must be able to update itself.
   http: ^1.2.2 # fetch update manifest + download APK
+  url_launcher: ^6.3.1 # open VANAM web pages from Home updates
   package_info_plus: ^8.1.1 # read installed versionCode
   path_provider: ^2.1.5 # somewhere to write the downloaded APK
   crypto: ^3.0.6 # SHA-256 verification of the download
