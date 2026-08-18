@@ -5,7 +5,6 @@ import '../auth/auth_service.dart';
 import '../theme/tokens.dart';
 import '../widgets/feedback_button.dart';
 import '../widgets/vanam_logo.dart';
-import 'admin_invites_screen.dart';
 import 'chat_detail_screen.dart';
 
 /// Login screen — invite code + PIN only.
@@ -63,9 +62,10 @@ class _LoginScreenState extends State<LoginScreen> {
         // once redemption succeeds — there's nothing to "go back" to.
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (_) => profile != null && profile.isAdmin
-                ? const AdminInvitesScreen()
-                : ChatDetailScreen(groupName: 'Family Group'),
+            builder: (_) => ChatDetailScreen(
+              groupName: 'Family Group',
+              isAdmin: profile?.isAdmin ?? false,
+            ),
           ),
         );
       }
@@ -77,7 +77,8 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _errorText = e.message);
     } catch (e) {
       setState(
-        () => _errorText = 'Something went wrong. Check your connection and try again.',
+        () => _errorText =
+            'Something went wrong. Check your connection and try again.',
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);

@@ -56,7 +56,11 @@ class _AdminInvitesScreenState extends State<AdminInvitesScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not create invite. Check your connection and try again.')),
+          const SnackBar(
+            content: Text(
+              'Could not create invite. Check your connection and try again.',
+            ),
+          ),
         );
       }
     }
@@ -74,7 +78,8 @@ class _AdminInvitesScreenState extends State<AdminInvitesScreen> {
             icon: const Icon(Icons.chat_bubble_outline),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => ChatDetailScreen(groupName: 'Family Group'),
+                builder: (_) =>
+                    ChatDetailScreen(groupName: 'Family Group', isAdmin: true),
               ),
             ),
           ),
@@ -133,10 +138,8 @@ class _AdminInvitesScreenState extends State<AdminInvitesScreen> {
               itemCount: invites.length,
               separatorBuilder: (context, index) =>
                   const SizedBox(height: VanamSpacing.sm),
-              itemBuilder: (context, i) => _InviteTile(
-                invite: invites[i],
-                onRevoked: _refresh,
-              ),
+              itemBuilder: (context, i) =>
+                  _InviteTile(invite: invites[i], onRevoked: _refresh),
             );
           },
         ),
@@ -244,7 +247,10 @@ class _InviteCreatedSheet extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Invite code', style: TextStyle(fontSize: 12, color: palette.inkMuted)),
+                  Text(
+                    'Invite code',
+                    style: TextStyle(fontSize: 12, color: palette.inkMuted),
+                  ),
                   SelectableText(
                     invite.code,
                     style: TextStyle(
@@ -255,7 +261,10 @@ class _InviteCreatedSheet extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: VanamSpacing.sm),
-                  Text('PIN', style: TextStyle(fontSize: 12, color: palette.inkMuted)),
+                  Text(
+                    'PIN',
+                    style: TextStyle(fontSize: 12, color: palette.inkMuted),
+                  ),
                   SelectableText(
                     pin,
                     style: TextStyle(
@@ -274,7 +283,9 @@ class _InviteCreatedSheet extends StatelessWidget {
                 await Clipboard.setData(ClipboardData(text: shareText));
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Copied — paste it to WhatsApp')),
+                    const SnackBar(
+                      content: Text('Copied — paste it to WhatsApp'),
+                    ),
                   );
                 }
               },

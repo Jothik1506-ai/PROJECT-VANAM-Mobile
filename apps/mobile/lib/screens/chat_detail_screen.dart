@@ -7,6 +7,7 @@ import '../chat/supabase_chat_sync.dart';
 import '../chat/test_identity.dart';
 import '../profile/profile_controller.dart';
 import '../theme/tokens.dart';
+import 'admin_invites_screen.dart';
 
 /// Real, locally-working chat thread for the Family Group.
 ///
@@ -19,10 +20,12 @@ class ChatDetailScreen extends StatefulWidget {
   ChatDetailScreen({
     super.key,
     required this.groupName,
+    this.isAdmin = false,
     ChatController? controller,
   }) : _controller = controller ?? familyGroupChat;
 
   final String groupName;
+  final bool isAdmin;
   final ChatController _controller;
 
   @override
@@ -206,6 +209,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           style: TextStyle(fontWeight: FontWeight.w700, color: palette.ink),
         ),
         actions: [
+          if (widget.isAdmin)
+            IconButton(
+              tooltip: 'Family Invites',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AdminInvitesScreen()),
+              ),
+              icon: Icon(Icons.person_add_alt_1, color: palette.brand),
+            ),
           IconButton(
             tooltip: 'Testing: chat as…',
             onPressed: _openIdentityPicker,
