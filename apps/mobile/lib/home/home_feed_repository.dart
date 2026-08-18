@@ -39,10 +39,15 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
 
   @override
   Future<List<Post>> fetchPosts() async {
-    final rows = await _client.rpc<List<dynamic>>(
-      'list_home_posts',
-      params: {'p_limit': 50},
-    );
+    final List<dynamic> rows;
+    try {
+      rows = await _client.rpc<List<dynamic>>(
+        'list_home_posts',
+        params: {'p_limit': 50},
+      );
+    } on PostgrestException catch (error) {
+      throw _friendlyError(error);
+    }
     return rows
         .whereType<Map<String, dynamic>>()
         .map((row) {
@@ -76,11 +81,16 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
       throw const HomeFeedException('Choose 20 photos or fewer.');
     }
 
-    final post = await _client
-        .from('home_posts')
-        .insert({'caption': trimmedCaption})
-        .select('id')
-        .single();
+    final Map<String, dynamic> post;
+    try {
+      post = await _client
+          .from('home_posts')
+          .insert({'caption': trimmedCaption})
+          .select('id')
+          .single();
+    } on PostgrestException catch (error) {
+      throw _friendlyError(error);
+    }
     final postId = post['id'] as String;
     final userId = _client.auth.currentUser?.id;
     if (userId == null) {
@@ -101,14 +111,27 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
               upsert: false,
             ),
           );
-      await _client.from('home_post_media').insert({
-        'post_id': postId,
-        'storage_bucket': bucket,
-        'storage_path': path,
-        'position': index,
-        'media_type': 'photo',
-      });
+      try {
+        await _client.from('home_post_media').insert({
+          'post_id': postId,
+          'storage_bucket': bucket,
+          'storage_path': path,
+          'position': index,
+          'media_type': 'photo',
+        });
+      } on PostgrestException catch (error) {
+        throw _friendlyError(error);
+      }
     }
+  }
+
+  HomeFeedException _friendlyError(PostgrestException error) {
+    if (error.code == 'PGRST205' || error.message.contains('home_posts')) {
+      return const HomeFeedException(
+        'Home posting is not set up in Supabase yet. Apply the Home feed migration, then try again.',
+      );
+    }
+    return HomeFeedException(error.message);
   }
 
   String _pathFor(String userId, String postId, int index, String name) {
