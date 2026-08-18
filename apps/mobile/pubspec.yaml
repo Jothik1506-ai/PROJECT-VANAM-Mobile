@@ -35,6 +35,9 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
+  # Backend (see ARCHITECTURE.md Section 5, supabase/schema.sql).
+  supabase_flutter: ^2.8.0
+
   # OTA self-update (see docs/OTA-RELEASES.md). VANAM ships outside the Play
   # Store, so the app must be able to update itself.
   http: ^1.2.2 # fetch update manifest + download APK

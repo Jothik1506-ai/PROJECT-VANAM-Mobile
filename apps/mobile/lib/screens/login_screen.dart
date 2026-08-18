@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../auth/auth_service.dart';
 import '../theme/tokens.dart';
 import '../widgets/feedback_button.dart';
 import '../widgets/vanam_logo.dart';
@@ -9,9 +10,10 @@ import '../widgets/vanam_logo.dart';
 /// No password, no Google login, no OTP login, no self-signup: this app has
 /// no open-registration path (see ARCHITECTURE.md, Section 3 / 3a).
 ///
-/// [onSubmit] is injected so this widget stays UI-only. Wiring it to the
-/// real `/auth/login` endpoint (ARCHITECTURE.md Section 5) is backend work,
-/// not part of this screen.
+/// [onSubmit] is injected so PreviewLoginGate can substitute a mock flow for
+/// UI review without touching the real backend. When left unset (the real
+/// V1 app, lib/main.dart), submitting calls the actual
+/// `authService.redeemInvite` — see ARCHITECTURE.md Section 5.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, this.onSubmit});
 
@@ -45,18 +47,30 @@ class _LoginScreenState extends State<LoginScreen> {
       _errorText = null;
     });
 
+    final code = _inviteCodeController.text.trim().toUpperCase();
+    final pin = _pinController.text.trim();
+
     try {
       if (widget.onSubmit != null) {
-        await widget.onSubmit!(
-          _inviteCodeController.text.trim().toUpperCase(),
-          _pinController.text.trim(),
-        );
+        await widget.onSubmit!(code, pin);
       } else {
-        // No backend wired yet — see ARCHITECTURE.md Section 5/11B.
-        await Future<void>.delayed(const Duration(milliseconds: 400));
+        await authService.redeemInvite(code: code, pin: pin);
+        // No further navigation here: main.dart doesn't yet route anywhere
+        // after login (ARCHITECTURE.md Section 4/11A — Chat List screen
+        // doesn't exist for the real app yet, only in the preview shell).
+        // A successful redeemInvite with no error is the correct signal
+        // that this step of the flow now genuinely works end-to-end.
       }
+    } on InviteRedemptionException catch (e) {
+      // The Postgres function's error text is already written for a human
+      // — see supabase/schema.sql redeem_invite() — so show it directly
+      // rather than a generic message that would hide *why* it failed
+      // (wrong PIN vs expired vs already used vs locked).
+      setState(() => _errorText = e.message);
     } catch (e) {
-      setState(() => _errorText = 'Could not verify invite code or PIN.');
+      setState(
+        () => _errorText = 'Something went wrong. Check your connection and try again.',
+      );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }

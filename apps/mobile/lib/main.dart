@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'chat/chat_controller.dart';
+import 'config/app_config.dart';
 import 'profile/profile_controller.dart';
 import 'screens/login_screen.dart';
 import 'theme/theme_controller.dart';
@@ -8,6 +10,10 @@ import 'theme/tokens.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Supabase.initialize(
+    url: AppConfig.supabaseUrl,
+    publishableKey: AppConfig.supabaseAnonKey,
+  );
   await profileController.load();
   await familyGroupChat.load();
   runApp(const VanamApp());
