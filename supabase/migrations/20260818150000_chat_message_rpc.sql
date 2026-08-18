@@ -6,8 +6,8 @@
 -- handling later should not require changing the Flutter chat UI.
 
 create or replace function public.send_message(
-  message_text text,
-  message_group_id text default 'family-group'
+  p_message_text text,
+  p_group_id text default 'family-group'
 )
 returns table (
   id uuid,
@@ -28,12 +28,12 @@ begin
     raise exception 'Only active family members can send messages';
   end if;
 
-  if length(trim(coalesce(message_text, ''))) = 0 then
+  if length(trim(coalesce(p_message_text, ''))) = 0 then
     raise exception 'Message cannot be empty';
   end if;
 
   insert into public.messages (group_id, sender_id, body)
-  values (message_group_id, auth.uid(), convert_to(trim(message_text), 'UTF8'))
+  values (p_group_id, auth.uid(), convert_to(trim(p_message_text), 'UTF8'))
   returning * into inserted;
 
   return query
@@ -50,8 +50,8 @@ end;
 $$;
 
 create or replace function public.list_messages(
-  message_group_id text default 'family-group',
-  message_limit integer default 100
+  p_group_id text default 'family-group',
+  p_message_limit integer default 100
 )
 returns table (
   id uuid,
@@ -77,9 +77,9 @@ as $$
   join public.profiles p on p.id = m.sender_id
   where
     public.is_active_member()
-    and m.group_id = message_group_id
+    and m.group_id = p_group_id
   order by m.sent_at asc
-  limit greatest(1, least(message_limit, 500));
+  limit greatest(1, least(p_message_limit, 500));
 $$;
 
 grant execute on function public.send_message(text, text) to authenticated;

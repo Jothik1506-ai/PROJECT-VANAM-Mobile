@@ -14,7 +14,7 @@ class SupabaseChatSync {
   }) async {
     final rows = await _client.rpc<List<dynamic>>(
       'list_messages',
-      params: {'message_group_id': groupId, 'message_limit': 100},
+      params: {'p_group_id': groupId, 'p_message_limit': 100},
     );
 
     return rows
@@ -29,7 +29,7 @@ class SupabaseChatSync {
   }) async {
     final rows = await _client.rpc<List<dynamic>>(
       'send_message',
-      params: {'message_group_id': groupId, 'message_text': text},
+      params: {'p_group_id': groupId, 'p_message_text': text},
     );
     final row = rows.whereType<Map<String, dynamic>>().first;
     return _messageFromRpcRow(row);
