@@ -88,6 +88,23 @@ void main() {
     expect(controller.value, isEmpty);
   });
 
+  test('isMine defaults true but can be overridden for the testing '
+      'identity switcher', () async {
+    final controller = ChatController(fileName: 'chat.json');
+    await controller.load();
+
+    await controller.sendLocalMessage(text: 'from me', senderName: 'You');
+    await controller.sendLocalMessage(
+      text: 'from Akka',
+      senderName: 'Akka',
+      isMine: false,
+    );
+
+    expect(controller.value[0].isMine, isTrue);
+    expect(controller.value[1].isMine, isFalse);
+    expect(controller.value[1].senderName, 'Akka');
+  });
+
   test('different chat files stay isolated from each other', () async {
     final familyGroup = ChatController(fileName: 'family.json');
     final other = ChatController(fileName: 'other.json');

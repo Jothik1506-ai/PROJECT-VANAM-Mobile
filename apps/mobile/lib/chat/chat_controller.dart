@@ -45,9 +45,15 @@ class ChatController extends ValueNotifier<List<ChatMessage>> {
   }
 
   /// Appends a message sent from this device and persists it.
+  ///
+  /// [isMine] defaults to true (your own outgoing message, right-aligned).
+  /// It can be set false by the dev-only identity switcher (see
+  /// lib/chat/test_identity.dart) to simulate an incoming-style message from
+  /// another family member while testing on a single phone.
   Future<void> sendLocalMessage({
     required String text,
     required String senderName,
+    bool isMine = true,
   }) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
@@ -57,7 +63,7 @@ class ChatController extends ValueNotifier<List<ChatMessage>> {
       senderName: senderName.trim().isEmpty ? 'You' : senderName.trim(),
       text: trimmed,
       sentAt: DateTime.now(),
-      isMine: true,
+      isMine: isMine,
     );
 
     value = [...value, message];
