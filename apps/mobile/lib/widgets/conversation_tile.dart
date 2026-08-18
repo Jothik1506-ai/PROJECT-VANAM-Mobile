@@ -8,9 +8,14 @@ import 'member_avatar.dart';
 /// Preview-only widget — see ARCHITECTURE.md Section 9 (calling is Phase 2,
 /// per-contact DMs are not in V1's single-group model).
 class ConversationTile extends StatelessWidget {
-  const ConversationTile({super.key, required this.conversation});
+  const ConversationTile({
+    super.key,
+    required this.conversation,
+    this.isAdmin = false,
+  });
 
   final Conversation conversation;
+  final bool isAdmin;
 
   @override
   Widget build(BuildContext context) {
@@ -25,8 +30,10 @@ class ConversationTile extends StatelessWidget {
         if (isFamilyGroup) {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) =>
-                  ChatDetailScreen(groupName: conversation.name),
+              builder: (_) => ChatDetailScreen(
+                groupName: conversation.name,
+                isAdmin: isAdmin,
+              ),
             ),
           );
         } else {

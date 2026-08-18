@@ -5,7 +5,7 @@ import '../auth/auth_service.dart';
 import '../theme/tokens.dart';
 import '../widgets/feedback_button.dart';
 import '../widgets/vanam_logo.dart';
-import 'chat_detail_screen.dart';
+import 'app_shell.dart';
 
 /// Login screen — invite code + PIN only.
 /// No password, no Google login, no OTP login, no self-signup: this app has
@@ -62,10 +62,7 @@ class _LoginScreenState extends State<LoginScreen> {
         // once redemption succeeds — there's nothing to "go back" to.
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (_) => ChatDetailScreen(
-              groupName: 'Family Group',
-              isAdmin: profile?.isAdmin ?? false,
-            ),
+            builder: (_) => AppShell(isAdmin: profile?.isAdmin ?? false),
           ),
         );
       }

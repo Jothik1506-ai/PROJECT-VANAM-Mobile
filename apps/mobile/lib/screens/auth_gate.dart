@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../auth/auth_service.dart';
-import 'chat_detail_screen.dart';
+import 'app_shell.dart';
 import 'login_screen.dart';
 
 /// Real startup routing for the actual app (lib/main.dart).
@@ -9,8 +9,8 @@ import 'login_screen.dart';
 /// supabase_flutter persists sessions on-device, including anonymous ones
 /// that already redeemed an invite — without this check, someone who
 /// already joined would see the Login screen again every time they open
-/// the app. Checks the session + profiles row and routes to the Family Group
-/// chat, enabling admin-only invite tools when applicable; otherwise falls
+/// the app. Checks the session + profiles row and routes to the real main app
+/// shell, enabling admin-only invite tools when applicable; otherwise falls
 /// back to Login.
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -39,10 +39,7 @@ class _AuthGateState extends State<AuthGate> {
         // to actually redeem one.
         return const LoginScreen();
       }
-      return ChatDetailScreen(
-        groupName: 'Family Group',
-        isAdmin: profile.isAdmin,
-      );
+      return AppShell(isAdmin: profile.isAdmin);
     } catch (_) {
       // Offline or a transient error resolving the profile must not strand
       // the user on a blank screen — Login can always be retried.

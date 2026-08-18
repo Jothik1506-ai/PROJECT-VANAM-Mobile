@@ -10,7 +10,9 @@ import '../widgets/conversation_tile.dart';
 /// family group with no per-contact DMs and no calling (Phase 2). This
 /// screen shows a polished preview list; none of it is wired to a backend.
 class MessagesScreen extends StatelessWidget {
-  const MessagesScreen({super.key});
+  const MessagesScreen({super.key, this.isAdmin = false});
+
+  final bool isAdmin;
 
   @override
   Widget build(BuildContext context) {
@@ -72,7 +74,10 @@ class MessagesScreen extends StatelessWidget {
                   color: palette.line,
                 ),
                 itemBuilder: (context, i) => RepaintBoundary(
-                  child: ConversationTile(conversation: mockConversations[i]),
+                  child: ConversationTile(
+                    conversation: mockConversations[i],
+                    isAdmin: isAdmin,
+                  ),
                 ),
               ),
             ),
