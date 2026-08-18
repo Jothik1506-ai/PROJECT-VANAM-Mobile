@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../config/app_config.dart';
 import '../models/web_update.dart';
 import '../theme/tokens.dart';
+import 'vanam_logo.dart';
 
 class WebUpdateCard extends StatelessWidget {
   const WebUpdateCard({super.key, required this.update});
@@ -39,17 +40,7 @@ class WebUpdateCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 52,
-            height: 52,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: palette.noticeSurface,
-              borderRadius: BorderRadius.circular(VanamRadii.field),
-              border: Border.all(color: palette.noticeBorder),
-            ),
-            child: Icon(Icons.public_outlined, color: palette.brand),
-          ),
+          const VanamLogo(size: 52),
           const SizedBox(width: VanamSpacing.md),
           Expanded(
             child: Column(
