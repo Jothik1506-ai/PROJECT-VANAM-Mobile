@@ -58,7 +58,7 @@ class PostCard extends StatelessWidget {
           ),
           AspectRatio(
             aspectRatio: 4 / 3,
-            child: _MemoryPreview(label: post.mood),
+            child: _PostMediaCarousel(urls: post.mediaUrls),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -100,6 +100,90 @@ class PostCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _PostMediaCarousel extends StatefulWidget {
+  const _PostMediaCarousel({required this.urls});
+
+  final List<String> urls;
+
+  @override
+  State<_PostMediaCarousel> createState() => _PostMediaCarouselState();
+}
+
+class _PostMediaCarouselState extends State<_PostMediaCarousel> {
+  int _index = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.vanam;
+    if (widget.urls.isEmpty) {
+      return const _MemoryPreview(label: 'Family note');
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        PageView.builder(
+          itemCount: widget.urls.length,
+          onPageChanged: (index) => setState(() => _index = index),
+          itemBuilder: (context, index) {
+            return Image.network(
+              widget.urls[index],
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return const _MemoryPreview(label: 'Photo unavailable');
+              },
+            );
+          },
+        ),
+        if (widget.urls.length > 1)
+          Positioned(
+            top: VanamSpacing.sm,
+            right: VanamSpacing.sm,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: VanamSpacing.sm,
+                vertical: VanamSpacing.xs,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                '${_index + 1}/${widget.urls.length}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        if (widget.urls.length > 1)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: VanamSpacing.sm,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (var i = 0; i < widget.urls.length; i++)
+                  Container(
+                    width: i == _index ? 12 : 6,
+                    height: 6,
+                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                    decoration: BoxDecoration(
+                      color: i == _index ? palette.brand : Colors.white70,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }
