@@ -1,10 +1,10 @@
 {
-  "latestVersionCode": 1,
-  "latestVersionName": "1.0.0",
+  "latestVersionCode": 2,
+  "latestVersionName": "1.0.1",
   "minSupportedVersionCode": 1,
-  "apkUrl": "https://updates.vanam.aivafreelancia.in/vanam-1.0.0-1.apk",
-  "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-  "sizeBytes": 0,
-  "releaseNotes": "No update is available yet.",
-  "publishedAt": "2026-08-19T00:00:00Z"
+  "apkUrl": "https://github.com/Jothik1506-ai/PROJECT-VANAM-Mobile/releases/download/v1.0.1-2/vanam-1.0.1-2.apk",
+  "sha256": "7ad269eb87f74526f7b2896a2241267755e78bbb7142056ac7539476edf5eeb4",
+  "sizeBytes": 156740669,
+  "releaseNotes": "Test OTA build with the latest Vanam mobile improvements.",
+  "publishedAt": "2026-08-19T01:00:00Z"
 }

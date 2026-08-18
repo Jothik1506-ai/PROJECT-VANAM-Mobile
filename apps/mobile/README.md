@@ -4,6 +4,8 @@ App source code lives here.
 
 Owner: Codex.
 
+License: proprietary, all rights reserved. See `../../LICENSE`.
+
 Before writing code, read `../../ARCHITECTURE.md` for the full UI/architecture
 plan (screens, navigation, encryption model, acceptance criteria).
 
