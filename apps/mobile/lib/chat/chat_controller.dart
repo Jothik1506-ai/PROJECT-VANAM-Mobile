@@ -5,22 +5,25 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'chat_message.dart';
+import 'supabase_chat_sync.dart';
 
-final familyGroupChat = ChatController(fileName: 'vanam_chat_family_group.json');
+final familyGroupChat = ChatController(
+  fileName: 'vanam_chat_family_group.json',
+);
 
-/// Local-only chat store for one conversation, mirroring ProfileController's
-/// shape (ValueNotifier + JSON file via path_provider) so the two local
-/// persistence stores in this app behave the same way.
+/// Local-first chat store for one conversation.
 ///
-/// Not synced anywhere. This is the "local working chat" step before real
-/// backend delivery — see ARCHITECTURE.md Section 6/10 for the planned
-/// Cloudflare Workers + D1 + Durable Object replacement.
+/// It always keeps a JSON cache so the thread opens quickly/offline. When a
+/// [SupabaseChatSync] is attached, sends and refreshes go through Supabase.
 class ChatController extends ValueNotifier<List<ChatMessage>> {
-  ChatController({required this.fileName}) : super(const []);
+  ChatController({required this.fileName, this.groupId = 'family-group'})
+    : super(const []);
 
   final String fileName;
+  final String groupId;
 
   bool _loaded = false;
+  SupabaseChatSync? _sync;
 
   Future<void> load() async {
     if (_loaded) return;
@@ -38,18 +41,24 @@ class ChatController extends ValueNotifier<List<ChatMessage>> {
             .toList();
       }
     } catch (_) {
-      // A corrupt local chat file must not crash the app or block the user
-      // from continuing to chat — start empty rather than throw.
       value = const [];
     }
   }
 
-  /// Appends a message sent from this device and persists it.
-  ///
-  /// [isMine] defaults to true (your own outgoing message, right-aligned).
-  /// It can be set false by the dev-only identity switcher (see
-  /// lib/chat/test_identity.dart) to simulate an incoming-style message from
-  /// another family member while testing on a single phone.
+  Future<void> attachSync(SupabaseChatSync sync) async {
+    _sync = sync;
+    await refreshFromRemote();
+  }
+
+  Future<void> refreshFromRemote() async {
+    final sync = _sync;
+    if (sync == null) return;
+
+    final remoteMessages = await sync.fetchMessages(groupId: groupId);
+    value = remoteMessages;
+    await _persist();
+  }
+
   Future<void> sendLocalMessage({
     required String text,
     required String senderName,
@@ -57,6 +66,14 @@ class ChatController extends ValueNotifier<List<ChatMessage>> {
   }) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
+
+    final sync = _sync;
+    if (sync != null && isMine) {
+      final message = await sync.sendMessage(text: trimmed, groupId: groupId);
+      value = _upsertMessage(value, message);
+      await _persist();
+      return;
+    }
 
     final message = ChatMessage(
       id: '${DateTime.now().microsecondsSinceEpoch}',
@@ -68,6 +85,20 @@ class ChatController extends ValueNotifier<List<ChatMessage>> {
 
     value = [...value, message];
     await _persist();
+  }
+
+  List<ChatMessage> _upsertMessage(
+    List<ChatMessage> messages,
+    ChatMessage message,
+  ) {
+    final index = messages.indexWhere((m) => m.id == message.id);
+    final next = [...messages];
+    if (index == -1) {
+      next.add(message);
+    } else {
+      next[index] = message;
+    }
+    return next..sort((a, b) => a.sentAt.compareTo(b.sentAt));
   }
 
   Future<void> _persist() async {

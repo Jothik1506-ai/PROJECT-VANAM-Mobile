@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../chat/chat_controller.dart';
 import '../chat/chat_message.dart';
+import '../chat/supabase_chat_sync.dart';
 import '../chat/test_identity.dart';
 import '../profile/profile_controller.dart';
 import '../theme/tokens.dart';
@@ -30,12 +32,51 @@ class ChatDetailScreen extends StatefulWidget {
 class _ChatDetailScreenState extends State<ChatDetailScreen> {
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
+  SupabaseChatSync? _sync;
+  RealtimeChannel? _messagesChannel;
+  String? _syncStatus;
+
+  @override
+  void initState() {
+    super.initState();
+    _attachSupabaseSync();
+  }
 
   @override
   void dispose() {
+    final channel = _messagesChannel;
+    final sync = _sync;
+    if (channel != null && sync != null) {
+      sync.unsubscribe(channel);
+    }
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _attachSupabaseSync() async {
+    try {
+      final client = Supabase.instance.client;
+      if (client.auth.currentUser == null) return;
+
+      final sync = SupabaseChatSync(client);
+      await widget._controller.attachSync(sync);
+      final channel = sync.subscribeToMessages(
+        groupId: widget._controller.groupId,
+        onChanged: widget._controller.refreshFromRemote,
+      );
+      if (!mounted) return;
+      setState(() {
+        _sync = sync;
+        _messagesChannel = channel;
+        _syncStatus = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(
+        () => _syncStatus = 'Offline mode - messages stay on this device',
+      );
+    }
   }
 
   Future<void> _send() async {
@@ -44,11 +85,22 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
     final override = testSenderOverride.value;
     _textController.clear();
-    await widget._controller.sendLocalMessage(
-      text: text,
-      senderName: override ?? profileController.value.displayName,
-      isMine: override == null,
-    );
+    try {
+      await widget._controller.sendLocalMessage(
+        text: text,
+        senderName: override ?? profileController.value.displayName,
+        isMine: override == null,
+      );
+    } catch (_) {
+      _textController.text = text;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not send. Check connection and try again.'),
+        ),
+      );
+      return;
+    }
 
     if (!mounted) return;
     // New message lands at the end of the list — follow it.
@@ -186,6 +238,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               );
             },
           ),
+          if (_syncStatus != null)
+            Container(
+              width: double.infinity,
+              color: palette.noticeSurface,
+              padding: const EdgeInsets.symmetric(
+                horizontal: VanamSpacing.md,
+                vertical: VanamSpacing.xs,
+              ),
+              child: Text(
+                _syncStatus!,
+                style: TextStyle(fontSize: 12, color: palette.brandStrong),
+              ),
+            ),
           Expanded(
             child: ValueListenableBuilder<List<ChatMessage>>(
               valueListenable: widget._controller,
@@ -202,8 +267,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   controller: _scrollController,
                   padding: const EdgeInsets.all(VanamSpacing.md),
                   itemCount: messages.length,
-                  itemBuilder: (context, i) =>
-                      RepaintBoundary(child: _MessageBubble(message: messages[i])),
+                  itemBuilder: (context, i) => RepaintBoundary(
+                    child: _MessageBubble(message: messages[i]),
+                  ),
                 );
               },
             ),
@@ -247,8 +313,9 @@ class _MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.vanam;
-    final alignment =
-        message.isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+    final alignment = message.isMine
+        ? CrossAxisAlignment.end
+        : CrossAxisAlignment.start;
     final bubbleColor = message.isMine ? palette.brand : palette.surfaceCard;
     final textColor = message.isMine ? Colors.white : palette.ink;
 
@@ -259,10 +326,7 @@ class _MessageBubble extends StatelessWidget {
         children: [
           if (!message.isMine)
             Padding(
-              padding: const EdgeInsets.only(
-                left: VanamSpacing.sm,
-                bottom: 2,
-              ),
+              padding: const EdgeInsets.only(left: VanamSpacing.sm, bottom: 2),
               child: Text(
                 message.senderName,
                 style: TextStyle(
@@ -286,8 +350,12 @@ class _MessageBubble extends StatelessWidget {
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(VanamRadii.field),
                   topRight: const Radius.circular(VanamRadii.field),
-                  bottomLeft: Radius.circular(message.isMine ? VanamRadii.field : 4),
-                  bottomRight: Radius.circular(message.isMine ? 4 : VanamRadii.field),
+                  bottomLeft: Radius.circular(
+                    message.isMine ? VanamRadii.field : 4,
+                  ),
+                  bottomRight: Radius.circular(
+                    message.isMine ? 4 : VanamRadii.field,
+                  ),
                 ),
                 border: message.isMine ? null : Border.all(color: palette.line),
               ),
