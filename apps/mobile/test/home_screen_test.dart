@@ -34,4 +34,7 @@ class _FakeHomeFeedRepository implements HomeFeedRepository {
     required String caption,
     required List<XFile> photos,
   }) async {}
+
+  @override
+  Future<void> deletePost(Post post) async {}
 }

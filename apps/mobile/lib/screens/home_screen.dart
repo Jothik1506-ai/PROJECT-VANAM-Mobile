@@ -16,10 +16,14 @@ import '../widgets/web_update_card.dart';
 /// Web updates are sourced from the current VANAM web hub list. Family posts
 /// are still local preview data until the posting backend is connected.
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, HomeFeedRepository? repository})
-    : _repository = repository;
+  const HomeScreen({
+    super.key,
+    HomeFeedRepository? repository,
+    this.isAdmin = false,
+  }) : _repository = repository;
 
   final HomeFeedRepository? _repository;
+  final bool isAdmin;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -47,6 +51,43 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (created == true) {
       await _refresh();
+    }
+  }
+
+  Future<void> _deletePost(Post post) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete post?'),
+        content: const Text(
+          'This permanently removes the post and its photos from Vanam.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await _repository.deletePost(post);
+      await _refresh();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Post deleted.')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not delete post: $error')));
     }
   }
 
@@ -115,7 +156,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       return Column(
                         children: [
                           for (final post in posts)
-                            RepaintBoundary(child: PostCard(post: post)),
+                            RepaintBoundary(
+                              child: PostCard(
+                                post: post,
+                                canDelete: widget.isAdmin || post.isMine,
+                                onDelete: () => _deletePost(post),
+                              ),
+                            ),
                         ],
                       );
                     },

@@ -45,7 +45,7 @@ class _AppShellState extends State<AppShell> {
     final screens = [
       const ComingSoonScreen(label: 'Reels'),
       MessagesScreen(isAdmin: widget.isAdmin),
-      const HomeScreen(),
+      HomeScreen(isAdmin: widget.isAdmin),
       const ProfileScreen(),
     ];
 

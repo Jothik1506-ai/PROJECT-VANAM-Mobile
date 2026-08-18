@@ -6,9 +6,16 @@ import 'member_avatar.dart';
 
 /// Preview-only widget — Home Feed is Phase 3 (ARCHITECTURE.md Section 9).
 class PostCard extends StatelessWidget {
-  const PostCard({super.key, required this.post});
+  const PostCard({
+    super.key,
+    required this.post,
+    this.canDelete = false,
+    this.onDelete,
+  });
 
   final Post post;
+  final bool canDelete;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +59,32 @@ class PostCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                Icon(Icons.more_horiz, color: palette.inkMuted),
+                PopupMenuButton<_PostAction>(
+                  enabled: canDelete,
+                  icon: Icon(Icons.more_horiz, color: palette.inkMuted),
+                  onSelected: (action) {
+                    if (action == _PostAction.delete) onDelete?.call();
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: _PostAction.delete,
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.delete_outline,
+                            color: palette.danger,
+                            size: 20,
+                          ),
+                          const SizedBox(width: VanamSpacing.sm),
+                          Text(
+                            'Delete permanently',
+                            style: TextStyle(color: palette.danger),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -103,6 +135,8 @@ class PostCard extends StatelessWidget {
     );
   }
 }
+
+enum _PostAction { delete }
 
 class _PostMediaCarousel extends StatefulWidget {
   const _PostMediaCarousel({required this.urls});

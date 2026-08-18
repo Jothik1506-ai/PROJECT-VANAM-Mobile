@@ -12,6 +12,8 @@ abstract class HomeFeedRepository {
     required String caption,
     required List<XFile> photos,
   });
+
+  Future<void> deletePost(Post post);
 }
 
 class EmptyHomeFeedRepository implements HomeFeedRepository {
@@ -27,6 +29,9 @@ class EmptyHomeFeedRepository implements HomeFeedRepository {
   }) async {
     throw const HomeFeedException('Preview mode cannot create posts.');
   }
+
+  @override
+  Future<void> deletePost(Post post) async {}
 }
 
 class SupabaseHomeFeedRepository implements HomeFeedRepository {
@@ -54,6 +59,7 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
           final paths = row['media_paths'];
           return Post.fromJson({
             ...row,
+            'is_mine': row['author_id'] == _client.auth.currentUser?.id,
             'media_urls': paths is List
                 ? paths
                       .whereType<String>()
@@ -122,6 +128,32 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
       } on PostgrestException catch (error) {
         throw _friendlyError(error);
       }
+    }
+  }
+
+  @override
+  Future<void> deletePost(Post post) async {
+    try {
+      final paths = await _client
+          .from('home_post_media')
+          .select('storage_path')
+          .eq('post_id', post.id);
+
+      final storagePaths = paths
+          .whereType<Map<String, dynamic>>()
+          .map((row) => row['storage_path'] as String?)
+          .nonNulls
+          .toList(growable: false);
+
+      await _client.from('home_posts').delete().eq('id', post.id);
+
+      if (storagePaths.isNotEmpty) {
+        await _client.storage.from(bucket).remove(storagePaths);
+      }
+    } on PostgrestException catch (error) {
+      throw _friendlyError(error);
+    } on StorageException catch (error) {
+      throw HomeFeedException(error.message);
     }
   }
 

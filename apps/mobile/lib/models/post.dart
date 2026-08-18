@@ -1,21 +1,25 @@
 class Post {
   const Post({
     required this.id,
+    required this.authorId,
     required this.authorName,
     required this.createdAt,
     required this.caption,
     required this.likeCount,
     required this.commentCount,
     required this.mediaUrls,
+    required this.isMine,
   });
 
   final String id;
+  final String authorId;
   final String authorName;
   final DateTime createdAt;
   final String caption;
   final int likeCount;
   final int commentCount;
   final List<String> mediaUrls;
+  final bool isMine;
 
   String get timeAgo {
     final difference = DateTime.now().difference(createdAt);
@@ -30,6 +34,7 @@ class Post {
     final media = json['media_urls'];
     return Post(
       id: json['id'] as String? ?? '',
+      authorId: json['author_id'] as String? ?? '',
       authorName: json['author_name'] as String? ?? 'Family Member',
       createdAt:
           DateTime.tryParse(json['created_at'] as String? ?? '') ??
@@ -40,6 +45,7 @@ class Post {
       mediaUrls: media is List
           ? media.whereType<String>().toList(growable: false)
           : const [],
+      isMine: json['is_mine'] as bool? ?? false,
     );
   }
 }
