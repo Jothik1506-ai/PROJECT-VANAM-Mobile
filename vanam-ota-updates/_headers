@@ -1,0 +1,5 @@
+/manifest.json
+  Cache-Control: public, max-age=300
+
+/*.apk
+  Cache-Control: public, max-age=31536000, immutable
