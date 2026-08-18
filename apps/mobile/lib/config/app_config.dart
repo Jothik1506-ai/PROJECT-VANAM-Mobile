@@ -23,4 +23,21 @@ class AppConfig {
     'VANAM_UPDATE_CHECKS_ENABLED',
     defaultValue: true,
   );
+
+  /// Supabase project (ARCHITECTURE.md Section 5, supabase/schema.sql).
+  ///
+  /// The anon key is safe to embed — it grants nothing by itself; Row Level
+  /// Security in schema.sql is what actually gates access. The service_role
+  /// key (which DOES bypass RLS) must never appear here or anywhere in the
+  /// client app.
+  static const supabaseUrl = String.fromEnvironment(
+    'VANAM_SUPABASE_URL',
+    defaultValue: 'https://yweghwsgxstrdodjrvey.supabase.co',
+  );
+
+  static const supabaseAnonKey = String.fromEnvironment(
+    'VANAM_SUPABASE_ANON_KEY',
+    defaultValue:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3ZWdod3NneHN0cmRvZGpydmV5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwMzA5NzYsImV4cCI6MjEwMjYwNjk3Nn0.g9sXJ7ANVkl6MQSjPw9D8qjL717S6deA5xTe-eZnHmo',
+  );
 }

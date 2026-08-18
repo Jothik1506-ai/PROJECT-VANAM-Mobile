@@ -1,11 +1,12 @@
+-- Applied copy of ../schema.sql for `supabase db push`. Keep these two files
+-- in sync by hand for now — one initial migration, not yet an incremental
+-- migration history.
+
 -- VANAM Mobile — Supabase schema for invite-only family chat.
 --
 -- See ARCHITECTURE.md Section 5 for the reasoning and the auth-flow
 -- explanation (anonymous sign-in + invite redemption, since there is no
 -- open signup and no email/phone in the locked login model).
---
--- Apply with: supabase db push   (or paste into the SQL editor once, in
--- order — this file is idempotent via IF NOT EXISTS / OR REPLACE).
 
 create extension if not exists pgcrypto;
 
@@ -47,10 +48,6 @@ create table if not exists public.invite_codes (
   redeemed_by uuid references public.profiles (id),
   redeemed_at timestamptz,
   revoked boolean not null default false,
-  -- Wrong-PIN attempts against this code. Locked out (revoked) after too
-  -- many — see redeem_invite(). A PIN is only 4-6 digits; without this, one
-  -- anonymous session could loop-guess every combination.
-  failed_attempts int not null default 0,
   created_at timestamptz not null default now()
 );
 
@@ -178,7 +175,6 @@ as $$
 declare
   invite public.invite_codes;
   new_profile public.profiles;
-  max_attempts constant int := 5;
 begin
   if auth.uid() is null then
     raise exception 'Must be signed in (even anonymously) to redeem an invite';
@@ -187,7 +183,7 @@ begin
   select * into invite
   from public.invite_codes
   where code = invite_code
-  for update; -- lock the row: two simultaneous redemptions/guesses must not race
+  for update; -- lock the row: two simultaneous redemptions of the same code must not both succeed
 
   if invite.id is null then
     raise exception 'Invalid invite code';
@@ -201,20 +197,7 @@ begin
   if invite.expires_at < now() then
     raise exception 'This invite has expired';
   end if;
-
   if invite.pin_hash <> crypt(invite_pin, invite.pin_hash) then
-    -- Wrong PIN: count it, and lock the whole invite out permanently once
-    -- the limit is hit — not just slow the caller down. A locked invite
-    -- needs a fresh one from the admin; that's the correct outcome for
-    -- something that looks like an attack, not an accident.
-    update public.invite_codes
-    set failed_attempts = failed_attempts + 1,
-        revoked = (failed_attempts + 1) >= max_attempts
-    where id = invite.id;
-
-    if (invite.failed_attempts + 1) >= max_attempts then
-      raise exception 'Too many incorrect attempts. This invite has been locked — ask your admin for a new one.';
-    end if;
     raise exception 'Incorrect PIN';
   end if;
 
@@ -278,28 +261,3 @@ $$;
 
 comment on function public.create_invite is
   'Admin-only. Generates the code, hashes the PIN — the plaintext PIN is never stored.';
-
--- ============================================================================
--- Bootstrapping the first admin (one-time, manual)
---
--- create_invite() requires an admin to already exist; a profiles row can
--- only be created by redeeming an invite. That's a deliberate chicken-and-
--- egg — it's what stops anyone from minting themselves an admin invite.
--- Breaking it once, for the real first admin, is a manual step:
---
---   1. In the app (or supabase-js in a scratch script), call
---      `supabase.auth.signInAnonymously()`. Note the returned user's id
---      (auth.uid()) — printed in the session, or readable from the
---      Supabase dashboard under Authentication > Users as the newest
---      anonymous user.
---   2. In the Supabase SQL editor (runs as service role, bypasses RLS),
---      run:
---
---        insert into public.profiles (id, display_name, role)
---        values ('<uid-from-step-1>', 'Jothik', 'admin');
---
---   3. That session is now a real admin and can call create_invite() for
---      every other family member from inside the app. Never repeat this
---      manual step for anyone else — it exists exactly once, for the first
---      admin.
--- ============================================================================
