@@ -11,11 +11,17 @@ class PostCard extends StatelessWidget {
     required this.post,
     this.canDelete = false,
     this.onDelete,
+    this.onLike,
+    this.onComment,
+    this.onShare,
   });
 
   final Post post;
   final bool canDelete;
   final VoidCallback? onDelete;
+  final VoidCallback? onLike;
+  final VoidCallback? onComment;
+  final VoidCallback? onShare;
 
   @override
   Widget build(BuildContext context) {
@@ -110,21 +116,46 @@ class PostCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(Icons.favorite_border, size: 20, color: palette.ink),
+                IconButton(
+                  onPressed: onLike,
+                  icon: Icon(
+                    post.likedByMe
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border,
+                    size: 20,
+                    color: post.likedByMe ? palette.danger : palette.ink,
+                  ),
+                  tooltip: post.likedByMe ? 'Unlike' : 'Like',
+                  visualDensity: VisualDensity.compact,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   '${post.likeCount}',
                   style: TextStyle(fontSize: 13, color: palette.ink),
                 ),
                 const SizedBox(width: VanamSpacing.md),
-                Icon(Icons.mode_comment_outlined, size: 20, color: palette.ink),
+                IconButton(
+                  onPressed: onComment,
+                  icon: Icon(
+                    Icons.mode_comment_outlined,
+                    size: 20,
+                    color: palette.ink,
+                  ),
+                  tooltip: 'Comments',
+                  visualDensity: VisualDensity.compact,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   '${post.commentCount}',
                   style: TextStyle(fontSize: 13, color: palette.ink),
                 ),
                 const SizedBox(width: VanamSpacing.md),
-                Icon(Icons.send_outlined, size: 20, color: palette.ink),
+                IconButton(
+                  onPressed: onShare,
+                  icon: Icon(Icons.send_outlined, size: 20, color: palette.ink),
+                  tooltip: 'Share in Vanam',
+                  visualDensity: VisualDensity.compact,
+                ),
                 const Spacer(),
                 Icon(Icons.bookmark_border, size: 20, color: palette.ink),
               ],
@@ -169,6 +200,12 @@ class _PostMediaCarouselState extends State<_PostMediaCarousel> {
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) {
                 return const _MemoryPreview(label: 'Photo unavailable');
+              },
+              frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                return GestureDetector(
+                  onTap: () => _openViewer(context, index),
+                  child: child,
+                );
               },
             );
           },
@@ -218,6 +255,69 @@ class _PostMediaCarouselState extends State<_PostMediaCarousel> {
             ),
           ),
       ],
+    );
+  }
+
+  void _openViewer(BuildContext context, int initialIndex) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _FullScreenMediaViewer(
+          urls: widget.urls,
+          initialIndex: initialIndex,
+        ),
+      ),
+    );
+  }
+}
+
+class _FullScreenMediaViewer extends StatefulWidget {
+  const _FullScreenMediaViewer({
+    required this.urls,
+    required this.initialIndex,
+  });
+
+  final List<String> urls;
+  final int initialIndex;
+
+  @override
+  State<_FullScreenMediaViewer> createState() => _FullScreenMediaViewerState();
+}
+
+class _FullScreenMediaViewerState extends State<_FullScreenMediaViewer> {
+  late final PageController _controller = PageController(
+    initialPage: widget.initialIndex,
+  );
+  late int _index = widget.initialIndex;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text('${_index + 1}/${widget.urls.length}'),
+      ),
+      body: PageView.builder(
+        controller: _controller,
+        itemCount: widget.urls.length,
+        onPageChanged: (index) => setState(() => _index = index),
+        itemBuilder: (context, index) {
+          return InteractiveViewer(
+            minScale: 1,
+            maxScale: 4,
+            child: Center(
+              child: Image.network(widget.urls[index], fit: BoxFit.contain),
+            ),
+          );
+        },
+      ),
     );
   }
 }

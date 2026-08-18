@@ -9,6 +9,7 @@ class Post {
     required this.commentCount,
     required this.mediaUrls,
     required this.isMine,
+    required this.likedByMe,
   });
 
   final String id;
@@ -20,6 +21,7 @@ class Post {
   final int commentCount;
   final List<String> mediaUrls;
   final bool isMine;
+  final bool likedByMe;
 
   String get timeAgo {
     final difference = DateTime.now().difference(createdAt);
@@ -46,6 +48,41 @@ class Post {
           ? media.whereType<String>().toList(growable: false)
           : const [],
       isMine: json['is_mine'] as bool? ?? false,
+      likedByMe: json['liked_by_me'] as bool? ?? false,
+    );
+  }
+}
+
+class PostComment {
+  const PostComment({
+    required this.id,
+    required this.authorName,
+    required this.body,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String authorName;
+  final String body;
+  final DateTime createdAt;
+
+  String get timeAgo {
+    final difference = DateTime.now().difference(createdAt);
+    if (difference.inMinutes < 1) return 'Just now';
+    if (difference.inHours < 1) return '${difference.inMinutes}m ago';
+    if (difference.inDays < 1) return '${difference.inHours}h ago';
+    if (difference.inDays < 7) return '${difference.inDays}d ago';
+    return '${createdAt.day}/${createdAt.month}/${createdAt.year}';
+  }
+
+  factory PostComment.fromJson(Map<String, dynamic> json) {
+    return PostComment(
+      id: json['id'] as String? ?? '',
+      authorName: json['author_name'] as String? ?? 'Family Member',
+      body: json['body'] as String? ?? '',
+      createdAt:
+          DateTime.tryParse(json['created_at'] as String? ?? '') ??
+          DateTime.now(),
     );
   }
 }

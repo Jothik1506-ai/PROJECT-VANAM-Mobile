@@ -7,6 +7,7 @@ import '../models/family_member.dart';
 import '../models/post.dart';
 import '../models/web_update.dart';
 import '../theme/tokens.dart';
+import '../widgets/member_avatar.dart';
 import '../widgets/post_card.dart';
 import '../widgets/story_avatar.dart';
 import '../widgets/vanam_logo.dart';
@@ -91,6 +92,38 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _toggleLike(Post post) async {
+    try {
+      await _repository.toggleLike(post);
+      await _refresh();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not update like: $error')));
+    }
+  }
+
+  Future<void> _showComments(Post post) async {
+    final changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => _CommentsSheet(post: post, repository: _repository),
+    );
+    if (changed == true) {
+      await _refresh();
+    }
+  }
+
+  void _showShare(Post post) {
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      builder: (context) => _InAppShareSheet(post: post),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = context.vanam;
@@ -161,6 +194,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 post: post,
                                 canDelete: widget.isAdmin || post.isMine,
                                 onDelete: () => _deletePost(post),
+                                onLike: () => _toggleLike(post),
+                                onComment: () => _showComments(post),
+                                onShare: () => _showShare(post),
                               ),
                             ),
                         ],
@@ -172,6 +208,217 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CommentsSheet extends StatefulWidget {
+  const _CommentsSheet({required this.post, required this.repository});
+
+  final Post post;
+  final HomeFeedRepository repository;
+
+  @override
+  State<_CommentsSheet> createState() => _CommentsSheetState();
+}
+
+class _CommentsSheetState extends State<_CommentsSheet> {
+  final _controller = TextEditingController();
+  late Future<List<PostComment>> _comments = widget.repository.fetchComments(
+    widget.post,
+  );
+  var _saving = false;
+  var _changed = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    setState(() => _saving = true);
+    try {
+      await widget.repository.addComment(
+        post: widget.post,
+        body: _controller.text,
+      );
+      _controller.clear();
+      setState(() {
+        _changed = true;
+        _comments = widget.repository.fetchComments(widget.post);
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not add comment: $error')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.vanam;
+    return Padding(
+      padding: EdgeInsets.only(
+        left: VanamSpacing.md,
+        right: VanamSpacing.md,
+        top: VanamSpacing.md,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + VanamSpacing.md,
+      ),
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height * 0.72,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Comments',
+                    style: TextStyle(
+                      color: palette.ink,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(_changed),
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Close comments',
+                ),
+              ],
+            ),
+            const SizedBox(height: VanamSpacing.md),
+            Expanded(
+              child: FutureBuilder<List<PostComment>>(
+                future: _comments,
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final comments = snapshot.data!;
+                  if (comments.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'No comments yet.',
+                        style: TextStyle(color: palette.inkMuted),
+                      ),
+                    );
+                  }
+                  return ListView.separated(
+                    itemCount: comments.length,
+                    separatorBuilder: (_, _) => Divider(color: palette.line),
+                    itemBuilder: (context, index) {
+                      final comment = comments[index];
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: MemberAvatar(
+                          name: comment.authorName,
+                          size: 34,
+                        ),
+                        title: Text(
+                          comment.authorName,
+                          style: TextStyle(
+                            color: palette.ink,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        subtitle: Text(comment.body),
+                        trailing: Text(
+                          comment.timeAgo,
+                          style: TextStyle(
+                            color: palette.inkMuted,
+                            fontSize: 11,
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: VanamSpacing.sm),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    decoration: const InputDecoration(
+                      hintText: 'Add a comment',
+                    ),
+                    minLines: 1,
+                    maxLines: 3,
+                  ),
+                ),
+                const SizedBox(width: VanamSpacing.sm),
+                IconButton.filled(
+                  onPressed: _saving ? null : _send,
+                  icon: const Icon(Icons.send),
+                  tooltip: 'Send comment',
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InAppShareSheet extends StatelessWidget {
+  const _InAppShareSheet({required this.post});
+
+  final Post post;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.vanam;
+    return Padding(
+      padding: const EdgeInsets.all(VanamSpacing.md),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Share in Vanam',
+            style: TextStyle(
+              color: palette.ink,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: VanamSpacing.sm),
+          Text(
+            'In-app sharing is ready for the family group flow. Direct share to chats will be connected when post-to-chat is added.',
+            style: TextStyle(color: palette.inkMuted),
+          ),
+          const SizedBox(height: VanamSpacing.md),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(VanamSpacing.md),
+            decoration: BoxDecoration(
+              color: palette.noticeSurface,
+              borderRadius: BorderRadius.circular(VanamRadii.card),
+              border: Border.all(color: palette.noticeBorder),
+            ),
+            child: Text(
+              post.caption.isEmpty
+                  ? 'Photo post by ${post.authorName}'
+                  : post.caption,
+              style: TextStyle(color: palette.brandStrong),
+            ),
+          ),
+          const SizedBox(height: VanamSpacing.md),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Done'),
+          ),
+        ],
       ),
     );
   }

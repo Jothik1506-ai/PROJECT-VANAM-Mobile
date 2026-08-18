@@ -14,6 +14,12 @@ abstract class HomeFeedRepository {
   });
 
   Future<void> deletePost(Post post);
+
+  Future<void> toggleLike(Post post);
+
+  Future<List<PostComment>> fetchComments(Post post);
+
+  Future<void> addComment({required Post post, required String body});
 }
 
 class EmptyHomeFeedRepository implements HomeFeedRepository {
@@ -32,6 +38,15 @@ class EmptyHomeFeedRepository implements HomeFeedRepository {
 
   @override
   Future<void> deletePost(Post post) async {}
+
+  @override
+  Future<void> toggleLike(Post post) async {}
+
+  @override
+  Future<List<PostComment>> fetchComments(Post post) async => const [];
+
+  @override
+  Future<void> addComment({required Post post, required String body}) async {}
 }
 
 class SupabaseHomeFeedRepository implements HomeFeedRepository {
@@ -60,6 +75,7 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
           return Post.fromJson({
             ...row,
             'is_mine': row['author_id'] == _client.auth.currentUser?.id,
+            'liked_by_me': row['liked_by_me'] == true,
             'media_urls': paths is List
                 ? paths
                       .whereType<String>()
@@ -159,6 +175,50 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
       throw HomeFeedException(
         'Could not delete uploaded photos. Nothing was removed yet. ${error.message}',
       );
+    }
+  }
+
+  @override
+  Future<void> toggleLike(Post post) async {
+    try {
+      await _client.rpc<void>(
+        'toggle_home_post_like',
+        params: {'p_post_id': post.id},
+      );
+    } on PostgrestException catch (error) {
+      throw _friendlyError(error);
+    }
+  }
+
+  @override
+  Future<List<PostComment>> fetchComments(Post post) async {
+    try {
+      final rows = await _client.rpc<List<dynamic>>(
+        'list_home_post_comments',
+        params: {'p_post_id': post.id},
+      );
+      return rows
+          .whereType<Map<String, dynamic>>()
+          .map(PostComment.fromJson)
+          .toList(growable: false);
+    } on PostgrestException catch (error) {
+      throw _friendlyError(error);
+    }
+  }
+
+  @override
+  Future<void> addComment({required Post post, required String body}) async {
+    final trimmed = body.trim();
+    if (trimmed.isEmpty) {
+      throw const HomeFeedException('Write a comment first.');
+    }
+    try {
+      await _client.rpc<void>(
+        'add_home_post_comment',
+        params: {'p_post_id': post.id, 'p_body': trimmed},
+      );
+    } on PostgrestException catch (error) {
+      throw _friendlyError(error);
     }
   }
 

@@ -37,4 +37,13 @@ class _FakeHomeFeedRepository implements HomeFeedRepository {
 
   @override
   Future<void> deletePost(Post post) async {}
+
+  @override
+  Future<void> toggleLike(Post post) async {}
+
+  @override
+  Future<List<PostComment>> fetchComments(Post post) async => const [];
+
+  @override
+  Future<void> addComment({required Post post, required String body}) async {}
 }
