@@ -1,4 +1,5 @@
 import java.util.Properties
+import org.gradle.api.GradleException
 
 plugins {
     id("com.android.application")
@@ -19,6 +20,9 @@ val keystoreProperties = Properties().apply {
     }
 }
 val hasReleaseKeystore = keystoreProperties.containsKey("storeFile")
+val buildingRelease = gradle.startParameter.taskNames.any {
+    it.contains("Release", ignoreCase = true)
+}
 
 android {
     namespace = "in.aivafreelancia.vanam.vanam_mobile"
@@ -60,9 +64,15 @@ android {
         release {
             if (hasReleaseKeystore) {
                 signingConfig = signingConfigs.getByName("release")
+            } else if (buildingRelease) {
+                throw GradleException(
+                    "Release signing key missing. Create android/key.properties " +
+                        "with the stable VANAM release keystore before building a release APK."
+                )
             }
-            // If key.properties is absent we deliberately leave the release
-            // build UNSIGNED rather than falling back to the debug key.
+            // If key.properties is absent we deliberately fail the release
+            // build rather than falling back to the debug key or emitting an
+            // unsigned APK.
             // A debug-signed build that reaches a real phone can never be
             // updated by a properly-signed one — the user would have to
             // uninstall first. Failing loudly here is the safer outcome.

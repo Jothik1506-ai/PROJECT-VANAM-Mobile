@@ -7,6 +7,7 @@ import 'profile/profile_controller.dart';
 import 'screens/auth_gate.dart';
 import 'theme/theme_controller.dart';
 import 'theme/tokens.dart';
+import 'widgets/update_check_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,7 +37,7 @@ class VanamApp extends StatelessWidget {
           // Real V1 entry point. AuthGate checks for a persisted session +
           // profile and routes straight past Login if one already exists.
           // Use lib/dev/preview_main.dart for the click-through preview shell.
-          home: const AuthGate(),
+          home: const UpdateCheckGate(child: AuthGate()),
         );
       },
     );
