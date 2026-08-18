@@ -7,12 +7,18 @@ class FamilyProfile {
     required this.displayName,
     required this.role,
     required this.status,
+    required this.nameConfirmed,
   });
 
   final String id;
   final String displayName;
   final String role;
   final String status;
+
+  /// False until the member has set their own display name (see
+  /// AuthService.setOwnDisplayName). Rows created before that feature
+  /// existed default to true — see supabase/migrations/20260818160000.
+  final bool nameConfirmed;
 
   bool get isAdmin => role == 'admin' && status == 'active';
 
@@ -22,6 +28,7 @@ class FamilyProfile {
       displayName: json['display_name'] as String? ?? '',
       role: json['role'] as String? ?? 'member',
       status: json['status'] as String? ?? 'active',
+      nameConfirmed: json['name_confirmed'] as bool? ?? true,
     );
   }
 }

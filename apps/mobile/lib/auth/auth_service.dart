@@ -65,11 +65,34 @@ class AuthService {
     return FamilyProfile.fromJson(row);
   }
 
+  /// Lets the current member set their own display name, overriding
+  /// whatever the admin typed into the invite dialog. See
+  /// SetDisplayNameScreen and supabase/migrations/20260818160000 — relation
+  /// labels (Amma/Nanna/Akka...) are viewer-relative, so V1 doesn't assign a
+  /// name on someone else's behalf.
+  Future<void> setOwnDisplayName(String name) async {
+    try {
+      await _client.rpc(
+        'set_own_display_name',
+        params: {'p_display_name': name},
+      );
+    } on PostgrestException catch (e) {
+      throw SetDisplayNameException(e.message);
+    }
+  }
+
   Future<void> signOut() => _client.auth.signOut();
 }
 
 class InviteRedemptionException implements Exception {
   const InviteRedemptionException(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
+class SetDisplayNameException implements Exception {
+  const SetDisplayNameException(this.message);
   final String message;
   @override
   String toString() => message;

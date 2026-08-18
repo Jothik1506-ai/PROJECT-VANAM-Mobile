@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../auth/auth_service.dart';
 import 'app_shell.dart';
 import 'login_screen.dart';
+import 'set_display_name_screen.dart';
 
 /// Real startup routing for the actual app (lib/main.dart).
 ///
@@ -38,6 +39,9 @@ class _AuthGateState extends State<AuthGate> {
         // invite — RLS would show them nothing anyway. Send them to Login
         // to actually redeem one.
         return const LoginScreen();
+      }
+      if (!profile.nameConfirmed) {
+        return SetDisplayNameScreen(isAdmin: profile.isAdmin);
       }
       return AppShell(isAdmin: profile.isAdmin);
     } catch (_) {

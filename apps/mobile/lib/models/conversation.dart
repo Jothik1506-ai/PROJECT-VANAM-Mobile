@@ -14,43 +14,18 @@ class Conversation {
   final int unreadCount;
 }
 
-/// Mock data for UI preview only — not wired to any backend.
-///
 /// Real V1 messaging (ARCHITECTURE.md Section 1/9) is a single family
-/// group, no per-contact DMs, no calling. This list of individual
-/// conversations + a group is shown for visual review only.
+/// group, no per-contact DMs, no calling. Only the one real thread is
+/// listed here — per-relation mock contacts (Amma/Nanna/Akka/Thammudu)
+/// were removed because relation labels are viewer-relative (what's
+/// "Akka" to one member is someone else's daughter-in-law), not a fact
+/// the app can hardcode. The Family Group tile below routes to the real
+/// Supabase-backed chat; nothing else in this list is wired to a backend.
 const mockConversations = [
   Conversation(
     name: 'Family Group',
-    lastMessage: 'Amma: Dinner at 8. Everyone confirm.',
-    timeLabel: '9:41 AM',
+    lastMessage: 'Tap to open the family chat',
+    timeLabel: '',
     status: 'Encrypted family group',
-    unreadCount: 5,
-  ),
-  Conversation(
-    name: 'Amma',
-    lastMessage: 'Kept prasadam for you.',
-    timeLabel: '8:15 AM',
-    status: 'Preview contact',
-    unreadCount: 2,
-  ),
-  Conversation(
-    name: 'Nanna',
-    lastMessage: 'Temple visit photos are ready.',
-    timeLabel: 'Yesterday',
-    status: 'Preview contact',
-  ),
-  Conversation(
-    name: 'Akka',
-    lastMessage: 'I updated the shopping list.',
-    timeLabel: 'Yesterday',
-    status: 'Preview contact',
-  ),
-  Conversation(
-    name: 'Thammudu',
-    lastMessage: 'On my way home',
-    timeLabel: 'Mon',
-    status: 'Preview contact',
-    unreadCount: 1,
   ),
 ];

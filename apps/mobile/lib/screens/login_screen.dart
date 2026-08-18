@@ -6,6 +6,7 @@ import '../theme/tokens.dart';
 import '../widgets/feedback_button.dart';
 import '../widgets/vanam_logo.dart';
 import 'app_shell.dart';
+import 'set_display_name_screen.dart';
 
 /// Login screen — invite code + PIN only.
 /// No password, no Google login, no OTP login, no self-signup: this app has
@@ -60,9 +61,12 @@ class _LoginScreenState extends State<LoginScreen> {
         if (!mounted) return;
         // pushReplacement, not push: Login shouldn't be reachable via back
         // once redemption succeeds — there's nothing to "go back" to.
+        final isAdmin = profile?.isAdmin ?? false;
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (_) => AppShell(isAdmin: profile?.isAdmin ?? false),
+            builder: (_) => profile != null && !profile.nameConfirmed
+                ? SetDisplayNameScreen(isAdmin: isAdmin)
+                : AppShell(isAdmin: isAdmin),
           ),
         );
       }
