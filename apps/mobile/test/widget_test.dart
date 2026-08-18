@@ -1,12 +1,23 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:vanam_mobile/main.dart';
+import 'package:vanam_mobile/screens/login_screen.dart';
+import 'package:vanam_mobile/theme/tokens.dart';
+
+// Pumps LoginScreen directly, not the full VanamApp/AuthGate — AuthGate
+// does a real Supabase session check on startup, which needs
+// Supabase.initialize() (only called from main.dart's main(), not from
+// pumping the widget tree in a test). These tests are about LoginScreen's
+// own form/validation behavior, not app-level routing, so they don't need
+// any of that. buildVanamTheme() IS needed though — context.vanam requires
+// the VanamPalette ThemeExtension to be present.
+Widget _wrap(Widget child) => MaterialApp(theme: buildVanamTheme(), home: child);
 
 void main() {
   testWidgets('Login screen shows invite code + PIN fields, no password/signup', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const VanamApp());
+    await tester.pumpWidget(_wrap(const LoginScreen()));
 
     expect(find.text('Welcome to Vanam'), findsOneWidget);
     expect(find.text('Invite code'), findsOneWidget);
@@ -22,7 +33,7 @@ void main() {
   testWidgets('Login button shows validation errors on empty submit', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const VanamApp());
+    await tester.pumpWidget(_wrap(const LoginScreen()));
 
     await tester.tap(find.text('Log In'));
     await tester.pump();

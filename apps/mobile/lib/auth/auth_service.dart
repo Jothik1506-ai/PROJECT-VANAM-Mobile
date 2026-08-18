@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'family_profile.dart';
+
 /// Global instance, mirroring the ProfileController/ChatController pattern
 /// elsewhere in this app. Safe as a top-level `final` because it's only
 /// evaluated on first access, by which point main() has already called
@@ -47,6 +49,20 @@ class AuthService {
     } on PostgrestException catch (e) {
       throw InviteRedemptionException(e.message);
     }
+  }
+
+  /// The caller's own profiles row, or null if this session hasn't
+  /// redeemed an invite yet (RLS would return nothing for it anyway).
+  Future<FamilyProfile?> fetchMyProfile() async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) return null;
+    final row = await _client
+        .from('profiles')
+        .select()
+        .eq('id', uid)
+        .maybeSingle();
+    if (row == null) return null;
+    return FamilyProfile.fromJson(row);
   }
 
   Future<void> signOut() => _client.auth.signOut();

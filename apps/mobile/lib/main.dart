@@ -4,7 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'chat/chat_controller.dart';
 import 'config/app_config.dart';
 import 'profile/profile_controller.dart';
-import 'screens/login_screen.dart';
+import 'screens/auth_gate.dart';
 import 'theme/theme_controller.dart';
 import 'theme/tokens.dart';
 
@@ -33,9 +33,10 @@ class VanamApp extends StatelessWidget {
           theme: buildVanamTheme(),
           darkTheme: buildVanamTheme(brightness: Brightness.dark),
           themeMode: themeMode,
-          // Real V1 entry point: invite code + PIN login only.
+          // Real V1 entry point. AuthGate checks for a persisted session +
+          // profile and routes straight past Login if one already exists.
           // Use lib/dev/preview_main.dart for the click-through preview shell.
-          home: const LoginScreen(),
+          home: const AuthGate(),
         );
       },
     );

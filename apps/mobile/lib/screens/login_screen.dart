@@ -5,6 +5,8 @@ import '../auth/auth_service.dart';
 import '../theme/tokens.dart';
 import '../widgets/feedback_button.dart';
 import '../widgets/vanam_logo.dart';
+import 'admin_invites_screen.dart';
+import 'chat_detail_screen.dart';
 
 /// Login screen — invite code + PIN only.
 /// No password, no Google login, no OTP login, no self-signup: this app has
@@ -55,11 +57,17 @@ class _LoginScreenState extends State<LoginScreen> {
         await widget.onSubmit!(code, pin);
       } else {
         await authService.redeemInvite(code: code, pin: pin);
-        // No further navigation here: main.dart doesn't yet route anywhere
-        // after login (ARCHITECTURE.md Section 4/11A — Chat List screen
-        // doesn't exist for the real app yet, only in the preview shell).
-        // A successful redeemInvite with no error is the correct signal
-        // that this step of the flow now genuinely works end-to-end.
+        final profile = await authService.fetchMyProfile();
+        if (!mounted) return;
+        // pushReplacement, not push: Login shouldn't be reachable via back
+        // once redemption succeeds — there's nothing to "go back" to.
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => profile != null && profile.isAdmin
+                ? const AdminInvitesScreen()
+                : ChatDetailScreen(groupName: 'Family Group'),
+          ),
+        );
       }
     } on InviteRedemptionException catch (e) {
       // The Postgres function's error text is already written for a human
