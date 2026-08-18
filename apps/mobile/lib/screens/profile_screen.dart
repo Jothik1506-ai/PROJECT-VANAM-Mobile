@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../profile/profile_controller.dart';
 import '../profile/user_profile.dart';
@@ -29,9 +30,38 @@ class ProfileScreen extends StatelessWidget {
             SizedBox(height: VanamSpacing.md),
             _ProfileMenuList(),
             SizedBox(height: VanamSpacing.xl),
+            _AppVersionLabel(),
+            SizedBox(height: VanamSpacing.xl),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _AppVersionLabel extends StatelessWidget {
+  const _AppVersionLabel();
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.vanam;
+    return FutureBuilder<PackageInfo>(
+      future: PackageInfo.fromPlatform(),
+      builder: (context, snapshot) {
+        final info = snapshot.data;
+        final versionText = info == null
+            ? 'Version loading...'
+            : 'Version ${info.version} (${info.buildNumber})';
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: VanamSpacing.md),
+          child: Center(
+            child: Text(
+              versionText,
+              style: TextStyle(color: palette.inkMuted, fontSize: 12),
+            ),
+          ),
+        );
+      },
     );
   }
 }
