@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../chat/chat_controller.dart';
 import '../profile/profile_controller.dart';
 import '../theme/theme_controller.dart';
 import '../theme/tokens.dart';
@@ -14,6 +15,7 @@ import 'preview_login_gate.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await profileController.load();
+  await familyGroupChat.load();
   runApp(const VanamPreviewApp());
 }
 

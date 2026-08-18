@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/conversation.dart';
+import '../screens/chat_detail_screen.dart';
 import '../theme/tokens.dart';
 import 'member_avatar.dart';
 
@@ -15,8 +16,30 @@ class ConversationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasUnread = conversation.unreadCount > 0;
     final palette = context.vanam;
+    // Only the Family Group has a real chat thread — ARCHITECTURE.md's
+    // locked V1 scope is one group, no per-contact DMs.
+    final isFamilyGroup = conversation.name == 'Family Group';
+
     return InkWell(
-      onTap: () {},
+      onTap: () {
+        if (isFamilyGroup) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) =>
+                  ChatDetailScreen(groupName: conversation.name),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                "Direct messages aren't available yet — only the Family "
+                'Group chat works right now.',
+              ),
+            ),
+          );
+        }
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: VanamSpacing.md,
