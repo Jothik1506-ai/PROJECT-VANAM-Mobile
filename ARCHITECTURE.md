@@ -123,25 +123,64 @@ Utility: `MediaViewer` (image only), `Loading`, `Error/Toast`, `Badge`
 
 Design tokens: forest green brand (`#1f5d2e`, shared with web platform), grey message bubbles, red for destructive actions, Noto Sans Telugu + system Latin font, 8px spacing grid.
 
-## 5. Backend (Cloudflare-native, trimmed to V1 needs)
-Same vendor as the web platform — no second ops surface.
+## 5. Backend
 
-| Need | Cloudflare product |
+**Revision (2026-08-18): Supabase, not Cloudflare-native.** The section
+below superseded the original Cloudflare Workers + D1 + Durable Objects
+design. Reasoning: invite-only members, profiles, and messages map cleanly
+onto Postgres tables with Row Level Security; Realtime is available without
+building Durable Object session-fan-out by hand; and it's simply faster to
+build and verify for an MVP. Cloudflare isn't gone — it keeps the jobs it's
+already doing well:
+
+| Need | Provider |
 |---|---|
-| REST API (auth, profile, invites) | **Workers** |
-| Relational data (users, invites, messages metadata) | **D1** |
-| Real-time chat delivery | **Durable Objects** (one instance per family group, holds live WebSocket connections) |
-| Avatar images | **R2** (optional for V1 — a default avatar is acceptable if this slips) |
+| Auth, invite redemption, profiles, messages, realtime delivery | **Supabase** (Postgres + Auth + Realtime) |
+| Web platform hosting | **Cloudflare Pages** (unchanged, separate repo) |
+| OTA update manifest + APK hosting | **Cloudflare** (unchanged, see docs/OTA-RELEASES.md) |
+| Media (avatars, later reels) | **Cloudflare R2** (deferred — not needed for V1 text chat) |
+| Push notifications | **Firebase** (deferred to whenever push is scheduled — not V1) |
 
-**Not provisioned in V1:** Cloudflare Stream (reels), Cloudflare Calls (calling). Add only when Phase 2/3 is scheduled — don't stand up infrastructure ahead of the feature that needs it.
+No VPS, no self-hosted server. Revisit Supabase only if it becomes
+genuinely limiting — not by default drift.
 
-Endpoints:
-- `POST /auth/login` (invite code + PIN → session)
-- `DELETE /session` (logout)
-- `GET/PATCH /users/:id` (profile)
-- `POST /messages`, `GET /messages` (paginated) + WebSocket via Durable Object for live delivery
+**Not provisioned in V1:** Cloudflare Stream (reels), Cloudflare Calls
+(calling), R2, Firebase. Add only when the phase that needs them is
+scheduled — don't stand up infrastructure ahead of the feature that needs it.
 
-Tables (D1): `users`, `inviteCodes`, `messages` (ciphertext only), `keys`
+### Auth model — invite code + PIN, not Supabase's default
+
+Supabase Auth is built around email/phone/OAuth/anonymous sign-in. VANAM's
+locked model has none of those — invite code + PIN only, no open signup
+(Section 3a / 7). The chosen mapping, using only what a Postgres function can
+do (no Edge Function required for V1):
+
+1. Client calls `supabase.auth.signInAnonymously()` — gets a real
+   `auth.uid()` and session with no email/phone attached to it.
+2. Client calls the `redeem_invite(code, pin)` RPC (a `SECURITY DEFINER`
+   Postgres function — see `supabase/schema.sql`), passing the invite code
+   and PIN entered on the Login screen.
+3. The function validates the invite (unexpired, unused, PIN hash matches),
+   marks it consumed, and creates a `profiles` row with
+   `id = auth.uid()` — permanently linking that anonymous session to a real
+   family member.
+4. Every other table's Row Level Security checks `auth.uid()` against an
+   *existing, non-revoked* `profiles` row. An anonymous session that never
+   redeemed an invite can read or write nothing.
+
+This keeps the "admin-approved, no self-signup" property intact — an
+anonymous Supabase session is worthless until a real invite is redeemed.
+
+### Schema
+
+See `supabase/schema.sql` for the actual DDL (`profiles`, `invite_codes`,
+`messages`, RLS policies, `redeem_invite()`, `create_invite()`). Message
+`body` is `bytea` — ciphertext only, matching Section 6; Supabase never
+receives or stores plaintext.
+
+Deferred, not in V1 schema: `devices` (multi-device support), `feedback`
+(the existing Work Manager integration is a separate external system, not
+Supabase-backed).
 
 ## 6. Encryption Model
 Text messages only in V1 — keep this honest and simple:
