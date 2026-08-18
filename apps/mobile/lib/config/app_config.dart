@@ -31,7 +31,7 @@ class AppConfig {
   ///     --dart-define=VANAM_WEB_BASE_URL=https://your-domain.example
   static const vanamWebBaseUrl = String.fromEnvironment(
     'VANAM_WEB_BASE_URL',
-    defaultValue: 'https://project-vanam.pages.dev',
+    defaultValue: 'https://vanam.aivafreelancia.in',
   );
 
   /// Supabase project (ARCHITECTURE.md Section 5, supabase/schema.sql).
