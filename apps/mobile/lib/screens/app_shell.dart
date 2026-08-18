@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../widgets/feedback_button.dart';
 import '../widgets/vanam_bottom_nav.dart';
+import 'admin_invites_screen.dart';
 import 'coming_soon_screen.dart';
 import 'home_screen.dart';
 import 'messages_screen.dart';
@@ -54,11 +55,45 @@ class _AppShellState extends State<AppShell> {
         onPageChanged: (i) => setState(() => _index = i),
         children: screens,
       ),
-      floatingActionButton: FeedbackButton(screen: _screenLabels[_index]),
+      floatingActionButton: _GlobalActions(
+        isAdmin: widget.isAdmin,
+        screen: _screenLabels[_index],
+      ),
       bottomNavigationBar: VanamBottomNav(
         currentIndex: _index,
         onTap: _goToTab,
       ),
+    );
+  }
+}
+
+class _GlobalActions extends StatelessWidget {
+  const _GlobalActions({required this.isAdmin, required this.screen});
+
+  final bool isAdmin;
+  final String screen;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isAdmin) return FeedbackButton(screen: screen);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        FloatingActionButton.extended(
+          heroTag: 'global-invite',
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AdminInvitesScreen()),
+            );
+          },
+          icon: const Icon(Icons.person_add_alt_1_outlined),
+          label: const Text('Invite'),
+        ),
+        const SizedBox(height: 12),
+        FeedbackButton(screen: screen),
+      ],
     );
   }
 }
