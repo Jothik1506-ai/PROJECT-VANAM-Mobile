@@ -18,8 +18,26 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _index = 2;
+  late final _pageController = PageController(initialPage: _index);
 
   static const _screenLabels = ['Reels', 'Messages', 'Home', 'Profile'];
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  // Tapping a tab animates the PageView to it; onPageChanged (below) is what
+  // actually updates _index, for both taps and swipes alike — so the two
+  // input methods can never disagree about which tab is "current".
+  void _goToTab(int index) {
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,11 +49,15 @@ class _AppShellState extends State<AppShell> {
     ];
 
     return Scaffold(
-      body: IndexedStack(index: _index, children: screens),
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (i) => setState(() => _index = i),
+        children: screens,
+      ),
       floatingActionButton: FeedbackButton(screen: _screenLabels[_index]),
       bottomNavigationBar: VanamBottomNav(
         currentIndex: _index,
-        onTap: (i) => setState(() => _index = i),
+        onTap: _goToTab,
       ),
     );
   }
