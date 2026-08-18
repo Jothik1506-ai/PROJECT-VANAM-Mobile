@@ -134,10 +134,10 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
   @override
   Future<void> deletePost(Post post) async {
     try {
-      final paths = await _client
-          .from('home_post_media')
-          .select('storage_path')
-          .eq('post_id', post.id);
+      final paths = await _client.rpc<List<dynamic>>(
+        'delete_home_post',
+        params: {'p_post_id': post.id},
+      );
 
       final storagePaths = paths
           .whereType<Map<String, dynamic>>()
@@ -145,15 +145,16 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
           .nonNulls
           .toList(growable: false);
 
-      await _client.from('home_posts').delete().eq('id', post.id);
-
       if (storagePaths.isNotEmpty) {
-        await _client.storage.from(bucket).remove(storagePaths);
+        try {
+          await _client.storage.from(bucket).remove(storagePaths);
+        } on StorageException {
+          // The post is already gone from the family feed. Storage cleanup can
+          // be retried later without making the delete look failed to the user.
+        }
       }
     } on PostgrestException catch (error) {
       throw _friendlyError(error);
-    } on StorageException catch (error) {
-      throw HomeFeedException(error.message);
     }
   }
 
