@@ -48,6 +48,13 @@ class _FeedbackDialogState extends State<_FeedbackDialog> {
   bool _isSending = false;
   String? _status;
 
+  /// Normally true: the member already gave their real name once, during
+  /// invite onboarding (see SetDisplayNameScreen) — feedback should never
+  /// ask again, just show who it's from. Only falls back to an editable
+  /// field if that local name is somehow missing (e.g. a very old install
+  /// from before that name was saved locally too).
+  bool get _hasKnownName => profileController.value.hasName;
+
   @override
   void initState() {
     super.initState();
@@ -110,17 +117,23 @@ class _FeedbackDialogState extends State<_FeedbackDialog> {
                 style: TextStyle(color: palette.inkMuted, fontSize: 13),
               ),
               const SizedBox(height: VanamSpacing.md),
-              TextFormField(
-                controller: _nameController,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(hintText: 'Your name'),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Add your name';
-                  }
-                  return null;
-                },
-              ),
+              if (_hasKnownName)
+                Text(
+                  'Sending as ${_nameController.text}',
+                  style: TextStyle(color: palette.ink, fontSize: 13),
+                )
+              else
+                TextFormField(
+                  controller: _nameController,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(hintText: 'Your name'),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Add your name';
+                    }
+                    return null;
+                  },
+                ),
               const SizedBox(height: VanamSpacing.md),
               TextFormField(
                 controller: _feedbackController,

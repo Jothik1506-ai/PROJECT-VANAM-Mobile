@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import '../widgets/feedback_button.dart';
 import '../widgets/vanam_bottom_nav.dart';
 import 'admin_invites_screen.dart';
-import 'coming_soon_screen.dart';
 import 'home_screen.dart';
 import 'messages_screen.dart';
 import 'profile_screen.dart';
+import 'reels_screen.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key, required this.isAdmin});
@@ -43,7 +43,7 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final screens = [
-      const ComingSoonScreen(label: 'Reels'),
+      const ReelsScreen(),
       MessagesScreen(isAdmin: widget.isAdmin),
       HomeScreen(isAdmin: widget.isAdmin),
       const ProfileScreen(),

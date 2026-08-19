@@ -5,7 +5,6 @@ import '../chat/chat_controller.dart';
 import '../chat/chat_message.dart';
 import '../chat/supabase_chat_sync.dart';
 import '../chat/supabase_direct_chat_sync.dart';
-import '../chat/test_identity.dart';
 import '../profile/profile_controller.dart';
 import '../theme/tokens.dart';
 import 'admin_invites_screen.dart';
@@ -148,11 +147,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _textController.clear();
     try {
       if (widget.mode == ChatDetailMode.familyGroup) {
-        final override = testSenderOverride.value;
         await widget._controller!.sendLocalMessage(
           text: text,
-          senderName: override ?? profileController.value.displayName,
-          isMine: override == null,
+          senderName: profileController.value.displayName,
         );
       } else {
         final sync = _directSync;
@@ -189,85 +186,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
   }
 
-  Future<void> _openIdentityPicker() async {
-    final palette = context.vanam;
-    final myName = profileController.value.displayName;
-
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: palette.surfaceCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(VanamRadii.card),
-        ),
-      ),
-      builder: (sheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: VanamSpacing.md),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: VanamSpacing.md,
-                  ),
-                  child: Text(
-                    'Testing: chat as…',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: palette.ink,
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    VanamSpacing.md,
-                    2,
-                    VanamSpacing.md,
-                    VanamSpacing.sm,
-                  ),
-                  child: Text(
-                    'One phone, simulating a multi-person chat. Not a real '
-                    'account switch.',
-                    style: TextStyle(fontSize: 12, color: palette.inkMuted),
-                  ),
-                ),
-                ValueListenableBuilder<String?>(
-                  valueListenable: testSenderOverride,
-                  builder: (context, active, _) {
-                    return Column(
-                      children: [
-                        _IdentityOption(
-                          label: 'Me ($myName)',
-                          selected: active == null,
-                          onTap: () {
-                            testSenderOverride.value = null;
-                            Navigator.of(sheetContext).pop();
-                          },
-                        ),
-                        for (final name in testIdentityChoices)
-                          _IdentityOption(
-                            label: name,
-                            selected: active == name,
-                            onTap: () {
-                              testSenderOverride.value = name;
-                              Navigator.of(sheetContext).pop();
-                            },
-                          ),
-                      ],
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final palette = context.vanam;
@@ -289,15 +207,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ),
               icon: Icon(Icons.person_add_alt_1, color: palette.brand),
             ),
-          // Simulating "chat as another test identity" only makes sense for
-          // the shared family group — a direct chat has exactly one real
-          // counterpart, so faking the sender would be actively misleading.
-          if (widget.mode == ChatDetailMode.familyGroup)
-            IconButton(
-              tooltip: 'Testing: chat as…',
-              onPressed: _openIdentityPicker,
-              icon: Icon(Icons.switch_account_outlined, color: palette.brand),
-            ),
           Padding(
             padding: const EdgeInsets.only(right: VanamSpacing.md),
             child: Icon(Icons.lock_outline, size: 18, color: palette.brand),
@@ -307,26 +216,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       backgroundColor: palette.surface,
       body: Column(
         children: [
-          ValueListenableBuilder<String?>(
-            valueListenable: testSenderOverride,
-            builder: (context, active, _) {
-              if (active == null || widget.mode != ChatDetailMode.familyGroup) {
-                return const SizedBox.shrink();
-              }
-              return Container(
-                width: double.infinity,
-                color: palette.noticeSurface,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: VanamSpacing.md,
-                  vertical: VanamSpacing.xs,
-                ),
-                child: Text(
-                  'Testing mode — chatting as $active',
-                  style: TextStyle(fontSize: 12, color: palette.brandStrong),
-                ),
-              );
-            },
-          ),
           if (_syncStatus != null)
             Container(
               width: double.infinity,
@@ -379,30 +268,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _IdentityOption extends StatelessWidget {
-  const _IdentityOption({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.vanam;
-    return ListTile(
-      onTap: onTap,
-      title: Text(label, style: TextStyle(color: palette.ink)),
-      trailing: selected
-          ? Icon(Icons.check_circle, color: palette.brand)
-          : null,
     );
   }
 }

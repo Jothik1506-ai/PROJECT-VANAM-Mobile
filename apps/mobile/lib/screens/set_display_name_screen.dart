@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../auth/auth_service.dart';
+import '../profile/profile_controller.dart';
 import '../theme/tokens.dart';
 import 'app_shell.dart';
 
@@ -42,7 +43,14 @@ class _SetDisplayNameScreenState extends State<SetDisplayNameScreen> {
     });
 
     try {
-      await authService.setOwnDisplayName(_nameController.text.trim());
+      final name = _nameController.text.trim();
+      await authService.setOwnDisplayName(name);
+      // Also save it locally: the Feedback dialog (and anything else reading
+      // profileController) must never ask for the name again after this —
+      // the member already gave it once, here.
+      await profileController.save(
+        profileController.value.copyWith(name: name),
+      );
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
