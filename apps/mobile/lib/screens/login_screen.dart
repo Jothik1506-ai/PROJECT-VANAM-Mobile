@@ -6,6 +6,7 @@ import '../theme/tokens.dart';
 import '../widgets/feedback_button.dart';
 import '../widgets/vanam_logo.dart';
 import 'app_shell.dart';
+import 'qr_scan_screen.dart';
 import 'set_display_name_screen.dart';
 
 /// Login screen — invite code + PIN only.
@@ -38,6 +39,22 @@ class _LoginScreenState extends State<LoginScreen> {
     _inviteCodeController.dispose();
     _pinController.dispose();
     super.dispose();
+  }
+
+  Future<void> _scanQr() async {
+    final result = await Navigator.of(context).push<(String, String)>(
+      MaterialPageRoute(builder: (_) => const QrScanScreen()),
+    );
+    if (result == null || !mounted) return;
+
+    final (code, pin) = result;
+    setState(() {
+      _inviteCodeController.text = code;
+      _pinController.text = pin;
+    });
+    // A scanned code is already exact — no reason to make the person tap
+    // Log In too after they just pointed a camera at it.
+    await _handleSubmit();
   }
 
   Future<void> _handleSubmit() async {
@@ -190,6 +207,12 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             )
                           : const Text('Log In'),
+                    ),
+                    const SizedBox(height: VanamSpacing.sm),
+                    OutlinedButton.icon(
+                      onPressed: _isSubmitting ? null : _scanQr,
+                      icon: const Icon(Icons.qr_code_scanner),
+                      label: const Text('Scan QR instead'),
                     ),
                     const SizedBox(height: VanamSpacing.lg),
                     Text.rich(

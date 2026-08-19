@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../invites/invite.dart';
+import '../invites/invite_qr_codec.dart';
 import '../invites/invite_service.dart';
 import '../theme/tokens.dart';
 import 'chat_detail_screen.dart';
@@ -218,86 +220,113 @@ class _InviteCreatedSheet extends StatelessWidget {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(VanamSpacing.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Invite ready for ${invite.inviteeName}',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: palette.ink,
+        // QR + code + PIN + copy button no longer reliably fits every phone
+        // height in one screen — scrollable so it clips instead of
+        // overflowing, rather than assuming every device is tall enough.
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Invite ready for ${invite.inviteeName}',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: palette.ink,
+                ),
               ),
-            ),
-            const SizedBox(height: VanamSpacing.xs),
-            Text(
-              'This PIN is shown only once. Copy or share it now — it '
-              "can't be recovered later, only reset with a new invite.",
-              style: TextStyle(fontSize: 12, color: palette.danger),
-            ),
-            const SizedBox(height: VanamSpacing.md),
-            Container(
-              padding: const EdgeInsets.all(VanamSpacing.md),
-              decoration: BoxDecoration(
-                color: palette.noticeSurface,
-                borderRadius: BorderRadius.circular(VanamRadii.card),
-                border: Border.all(color: palette.noticeBorder),
+              const SizedBox(height: VanamSpacing.xs),
+              Text(
+                'This PIN is shown only once. Copy or share it now — it '
+                "can't be recovered later, only reset with a new invite.",
+                style: TextStyle(fontSize: 12, color: palette.danger),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Invite code',
-                    style: TextStyle(fontSize: 12, color: palette.inkMuted),
-                  ),
-                  SelectableText(
-                    invite.code,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: palette.brandStrong,
-                      letterSpacing: 1.2,
+              const SizedBox(height: VanamSpacing.md),
+              Container(
+                padding: const EdgeInsets.all(VanamSpacing.md),
+                decoration: BoxDecoration(
+                  color: palette.noticeSurface,
+                  borderRadius: BorderRadius.circular(VanamRadii.card),
+                  border: Border.all(color: palette.noticeBorder),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Invite code',
+                      style: TextStyle(fontSize: 12, color: palette.inkMuted),
                     ),
-                  ),
-                  const SizedBox(height: VanamSpacing.sm),
-                  Text(
-                    'PIN',
-                    style: TextStyle(fontSize: 12, color: palette.inkMuted),
-                  ),
-                  SelectableText(
-                    pin,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: palette.brandStrong,
-                      letterSpacing: 1.2,
+                    SelectableText(
+                      invite.code,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: palette.brandStrong,
+                        letterSpacing: 1.2,
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: VanamSpacing.sm),
+                    Text(
+                      'PIN',
+                      style: TextStyle(fontSize: 12, color: palette.inkMuted),
+                    ),
+                    SelectableText(
+                      pin,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: palette.brandStrong,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: VanamSpacing.md),
-            FilledButton.icon(
-              onPressed: () async {
-                await Clipboard.setData(ClipboardData(text: shareText));
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Copied — paste it to WhatsApp'),
-                    ),
-                  );
-                }
-              },
-              icon: const Icon(Icons.copy_all),
-              label: const Text('Copy invite details'),
-            ),
-            const SizedBox(height: VanamSpacing.sm),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Done'),
-            ),
-          ],
+              const SizedBox(height: VanamSpacing.md),
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(VanamSpacing.md),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(VanamRadii.card),
+                  ),
+                  child: QrImageView(
+                    data: InviteQrCodec.encode(code: invite.code, pin: pin),
+                    size: 180,
+                    padding: EdgeInsets.zero,
+                  ),
+                ),
+              ),
+              const SizedBox(height: VanamSpacing.xs),
+              Text(
+                'Or let them scan this from the Login screen — faster than '
+                'typing the code and PIN.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: palette.inkMuted),
+              ),
+              const SizedBox(height: VanamSpacing.md),
+              FilledButton.icon(
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: shareText));
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Copied — paste it to WhatsApp'),
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.copy_all),
+                label: const Text('Copy invite details'),
+              ),
+              const SizedBox(height: VanamSpacing.sm),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Done'),
+              ),
+            ],
+          ),
         ),
       ),
     );
