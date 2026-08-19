@@ -69,6 +69,10 @@ class SupabaseChatSync {
       sentAt:
           DateTime.tryParse(json['sent_at'] as String? ?? '') ?? DateTime.now(),
       isMine: senderId.isNotEmpty && senderId == currentUserId,
+      kind: ChatMessageKind.values.firstWhere(
+        (k) => k.name == json['kind'],
+        orElse: () => ChatMessageKind.user,
+      ),
     );
   }
 }

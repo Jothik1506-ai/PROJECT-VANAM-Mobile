@@ -278,9 +278,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   controller: _scrollController,
                   padding: const EdgeInsets.all(VanamSpacing.md),
                   itemCount: messages.length,
-                  itemBuilder: (context, i) => RepaintBoundary(
-                    child: _MessageBubble(message: messages[i]),
-                  ),
+                  itemBuilder: (context, i) {
+                    final message = messages[i];
+                    return RepaintBoundary(
+                      child: message.kind == ChatMessageKind.system
+                          ? _SystemEventNotice(message: message)
+                          : _MessageBubble(message: message),
+                    );
+                  },
                 );
               },
             ),
@@ -390,6 +395,39 @@ class _MessageBubble extends StatelessWidget {
     final minute = time.minute.toString().padLeft(2, '0');
     final period = time.hour >= 12 ? 'PM' : 'AM';
     return '$hour:$minute $period';
+  }
+}
+
+/// A system event ("`<Name>` joined Vanam") — centered notice text, never a
+/// chat bubble, and never attributed to "me" or "them" either way.
+class _SystemEventNotice extends StatelessWidget {
+  const _SystemEventNotice({required this.message});
+
+  final ChatMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.vanam;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: VanamSpacing.sm),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: VanamSpacing.md,
+            vertical: VanamSpacing.xs,
+          ),
+          decoration: BoxDecoration(
+            color: palette.noticeSurface,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            message.text,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: palette.brandStrong),
+          ),
+        ),
+      ),
+    );
   }
 }
 
