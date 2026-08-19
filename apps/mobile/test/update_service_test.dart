@@ -21,10 +21,7 @@ void setInstalledVersionCode(int versionCode) {
   );
 }
 
-UpdateService serviceReturning(
-  String body, {
-  int statusCode = 200,
-}) {
+UpdateService serviceReturning(String body, {int statusCode = 200}) {
   return UpdateService(
     manifestUrl: 'https://updates.example.com/manifest.json',
     client: MockClient((_) async => http.Response(body, statusCode)),
@@ -58,16 +55,18 @@ void main() {
       expect(result.hasUpdate, isFalse);
     });
 
-    test('reports up to date when installed build is newer than manifest',
-        () async {
-      // Can happen on a dev device running an unreleased build.
-      setInstalledVersionCode(9);
-      final result = await serviceReturning(
-        manifestJson(latestVersionCode: 5),
-      ).check();
+    test(
+      'reports up to date when installed build is newer than manifest',
+      () async {
+        // Can happen on a dev device running an unreleased build.
+        setInstalledVersionCode(9);
+        final result = await serviceReturning(
+          manifestJson(latestVersionCode: 5),
+        ).check();
 
-      expect(result.availability, UpdateAvailability.upToDate);
-    });
+        expect(result.availability, UpdateAvailability.upToDate);
+      },
+    );
 
     test('reports an optional update when a newer build exists', () async {
       setInstalledVersionCode(4);

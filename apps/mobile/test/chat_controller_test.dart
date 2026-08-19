@@ -66,7 +66,10 @@ void main() {
       'controller instance)', () async {
     final first = ChatController(fileName: 'chat.json');
     await first.load();
-    await first.sendLocalMessage(text: 'On my way home', senderName: 'Thammudu');
+    await first.sendLocalMessage(
+      text: 'On my way home',
+      senderName: 'Thammudu',
+    );
     await first.sendLocalMessage(text: 'See you soon!', senderName: 'You');
 
     // Simulate an app restart: a brand new controller, same backing file.
@@ -111,7 +114,10 @@ void main() {
     await familyGroup.load();
     await other.load();
 
-    await familyGroup.sendLocalMessage(text: 'group message', senderName: 'You');
+    await familyGroup.sendLocalMessage(
+      text: 'group message',
+      senderName: 'You',
+    );
 
     expect(familyGroup.value, hasLength(1));
     expect(other.value, isEmpty);

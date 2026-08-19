@@ -6,12 +6,14 @@ import '../home/home_feed_repository.dart';
 import '../models/family_member.dart';
 import '../models/post.dart';
 import '../models/web_update.dart';
+import '../notifications/in_app_notification_service.dart';
 import '../theme/tokens.dart';
 import '../widgets/member_avatar.dart';
 import '../widgets/post_card.dart';
 import '../widgets/story_avatar.dart';
 import '../widgets/vanam_logo.dart';
 import '../widgets/web_update_card.dart';
+import 'notifications_screen.dart';
 
 /// Home feed screen.
 /// Web updates are sourced from the current VANAM web hub list. Family posts
@@ -20,10 +22,13 @@ class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
     HomeFeedRepository? repository,
+    NotificationRepository? notificationRepository,
     this.isAdmin = false,
-  }) : _repository = repository;
+  }) : _repository = repository,
+       _notificationRepository = notificationRepository;
 
   final HomeFeedRepository? _repository;
+  final NotificationRepository? _notificationRepository;
   final bool isAdmin;
 
   @override
@@ -34,13 +39,27 @@ class _HomeScreenState extends State<HomeScreen> {
   late final HomeFeedRepository _repository =
       widget._repository ??
       SupabaseHomeFeedRepository(Supabase.instance.client);
+  late final NotificationRepository _notificationRepository =
+      widget._notificationRepository ?? inAppNotificationService;
   late Future<List<Post>> _posts = _repository.fetchPosts();
+  late Future<int> _unreadNotifications = _notificationRepository.unreadCount();
 
   Future<void> _refresh() async {
     setState(() {
       _posts = _repository.fetchPosts();
+      _unreadNotifications = _notificationRepository.unreadCount();
     });
     await _posts;
+  }
+
+  Future<void> _openNotifications() async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+    if (!mounted) return;
+    setState(() {
+      _unreadNotifications = _notificationRepository.unreadCount();
+    });
   }
 
   Future<void> _showCreatePost() async {
@@ -131,7 +150,10 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _HomeAppBar(),
+            _HomeAppBar(
+              unreadNotifications: _unreadNotifications,
+              onOpenNotifications: _openNotifications,
+            ),
             Divider(height: 1, color: palette.line),
             Expanded(
               child: ListView(
@@ -425,7 +447,13 @@ class _InAppShareSheet extends StatelessWidget {
 }
 
 class _HomeAppBar extends StatelessWidget {
-  const _HomeAppBar();
+  const _HomeAppBar({
+    required this.unreadNotifications,
+    required this.onOpenNotifications,
+  });
+
+  final Future<int> unreadNotifications;
+  final VoidCallback onOpenNotifications;
 
   @override
   Widget build(BuildContext context) {
@@ -461,29 +489,54 @@ class _HomeAppBar extends StatelessWidget {
             onPressed: () {},
             icon: Icon(Icons.search, color: palette.ink),
           ),
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              IconButton(
-                onPressed: () {},
-                icon: Icon(
-                  Icons.notifications_none_rounded,
-                  color: palette.ink,
-                ),
-              ),
-              Positioned(
-                right: 8,
-                top: 8,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: palette.danger,
-                    shape: BoxShape.circle,
+          FutureBuilder<int>(
+            future: unreadNotifications,
+            builder: (context, snapshot) {
+              final count = snapshot.data ?? 0;
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    onPressed: onOpenNotifications,
+                    icon: Icon(
+                      Icons.notifications_none_rounded,
+                      color: palette.ink,
+                    ),
+                    tooltip: 'Notifications',
                   ),
-                ),
-              ),
-            ],
+                  if (count > 0)
+                    Positioned(
+                      right: 6,
+                      top: 6,
+                      child: Container(
+                        constraints: const BoxConstraints(
+                          minWidth: 18,
+                          minHeight: 18,
+                        ),
+                        alignment: Alignment.center,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        decoration: BoxDecoration(
+                          color: palette.danger,
+                          shape: count > 9
+                              ? BoxShape.rectangle
+                              : BoxShape.circle,
+                          borderRadius: count > 9
+                              ? BorderRadius.circular(999)
+                              : null,
+                        ),
+                        child: Text(
+                          count > 99 ? '99+' : '$count',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         ],
       ),

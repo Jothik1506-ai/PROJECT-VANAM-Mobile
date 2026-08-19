@@ -4,29 +4,48 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../chat/chat_controller.dart';
 import '../chat/chat_message.dart';
 import '../chat/supabase_chat_sync.dart';
+import '../chat/supabase_direct_chat_sync.dart';
 import '../chat/test_identity.dart';
 import '../profile/profile_controller.dart';
 import '../theme/tokens.dart';
 import 'admin_invites_screen.dart';
 
-/// Real, locally-working chat thread for the Family Group.
-///
-/// Messages are typed, sent, and persisted on THIS device only — there is
-/// no backend yet, so nothing is shared between phones. This is the step
-/// before real delivery: see ARCHITECTURE.md Section 6/10 for the planned
-/// Cloudflare + E2EE backend that will eventually carry these messages
-/// between family members' devices.
+enum ChatDetailMode { familyGroup, direct }
+
+/// Real chat thread — either the one Family Group, or a direct/personal
+/// chat with one other member. One screen, not two, per mode/params
+/// preference: the two modes differ only in which Supabase sync target
+/// they attach (family group's shared `messages` table + ChatController's
+/// local cache, vs. a direct conversation's per-pair `direct_messages`
+/// table with no local cache) — the rest of the UI is identical.
 class ChatDetailScreen extends StatefulWidget {
+  // Cannot be const because the default family-group controller is runtime state.
+  // ignore: prefer_const_constructors_in_immutables
   ChatDetailScreen({
     super.key,
     required this.groupName,
     this.isAdmin = false,
     ChatController? controller,
-  }) : _controller = controller ?? familyGroupChat;
+  }) : mode = ChatDetailMode.familyGroup,
+       _controller = controller ?? familyGroupChat,
+       conversationId = null;
+
+  const ChatDetailScreen.direct({
+    super.key,
+    required String otherDisplayName,
+    required this.conversationId,
+  }) : groupName = otherDisplayName,
+       isAdmin = false,
+       mode = ChatDetailMode.direct,
+       _controller = null;
 
   final String groupName;
   final bool isAdmin;
-  final ChatController _controller;
+  final ChatDetailMode mode;
+  final String? conversationId;
+
+  /// Only set (and only used) in familyGroup mode.
+  final ChatController? _controller;
 
   @override
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
@@ -35,7 +54,18 @@ class ChatDetailScreen extends StatefulWidget {
 class _ChatDetailScreenState extends State<ChatDetailScreen> {
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
-  SupabaseChatSync? _sync;
+
+  /// Family-group mode reads/writes through widget._controller directly
+  /// (it's already the source of truth, with its own local cache). Direct
+  /// mode has no persistent controller of its own, so this notifier is
+  /// state-owned and fed by fetch + Realtime instead.
+  late final ValueNotifier<List<ChatMessage>> _messages =
+      widget.mode == ChatDetailMode.familyGroup
+      ? widget._controller!
+      : ValueNotifier<List<ChatMessage>>(const []);
+
+  SupabaseChatSync? _familySync;
+  SupabaseDirectChatSync? _directSync;
   RealtimeChannel? _messagesChannel;
   String? _syncStatus;
 
@@ -48,9 +78,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   @override
   void dispose() {
     final channel = _messagesChannel;
-    final sync = _sync;
-    if (channel != null && sync != null) {
-      sync.unsubscribe(channel);
+    if (channel != null) {
+      if (_familySync != null) {
+        _familySync!.unsubscribe(channel);
+      } else if (_directSync != null) {
+        _directSync!.unsubscribe(channel);
+      }
+    }
+    if (widget.mode == ChatDetailMode.direct) {
+      _messages.dispose();
     }
     _textController.dispose();
     _scrollController.dispose();
@@ -62,15 +98,38 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       final client = Supabase.instance.client;
       if (client.auth.currentUser == null) return;
 
-      final sync = SupabaseChatSync(client);
-      await widget._controller.attachSync(sync);
+      if (widget.mode == ChatDetailMode.familyGroup) {
+        final sync = SupabaseChatSync(client);
+        await widget._controller!.attachSync(sync);
+        final channel = sync.subscribeToMessages(
+          groupId: widget._controller!.groupId,
+          onChanged: widget._controller!.refreshFromRemote,
+        );
+        if (!mounted) return;
+        setState(() {
+          _familySync = sync;
+          _messagesChannel = channel;
+          _syncStatus = null;
+        });
+        return;
+      }
+
+      final conversationId = widget.conversationId!;
+      final sync = SupabaseDirectChatSync(client);
+      _messages.value = await sync.fetchMessages(
+        conversationId: conversationId,
+      );
       final channel = sync.subscribeToMessages(
-        groupId: widget._controller.groupId,
-        onChanged: widget._controller.refreshFromRemote,
+        conversationId: conversationId,
+        onChanged: () async {
+          _messages.value = await sync.fetchMessages(
+            conversationId: conversationId,
+          );
+        },
       );
       if (!mounted) return;
       setState(() {
-        _sync = sync;
+        _directSync = sync;
         _messagesChannel = channel;
         _syncStatus = null;
       });
@@ -86,14 +145,27 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final text = _textController.text;
     if (text.trim().isEmpty) return;
 
-    final override = testSenderOverride.value;
     _textController.clear();
     try {
-      await widget._controller.sendLocalMessage(
-        text: text,
-        senderName: override ?? profileController.value.displayName,
-        isMine: override == null,
-      );
+      if (widget.mode == ChatDetailMode.familyGroup) {
+        final override = testSenderOverride.value;
+        await widget._controller!.sendLocalMessage(
+          text: text,
+          senderName: override ?? profileController.value.displayName,
+          isMine: override == null,
+        );
+      } else {
+        final sync = _directSync;
+        if (sync == null) {
+          throw StateError('Direct chat sync not ready');
+        }
+        final message = await sync.sendMessage(
+          conversationId: widget.conversationId!,
+          text: text,
+        );
+        _messages.value = [..._messages.value, message]
+          ..sort((a, b) => a.sentAt.compareTo(b.sentAt));
+      }
     } catch (_) {
       _textController.text = text;
       if (!mounted) return;
@@ -217,11 +289,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ),
               icon: Icon(Icons.person_add_alt_1, color: palette.brand),
             ),
-          IconButton(
-            tooltip: 'Testing: chat as…',
-            onPressed: _openIdentityPicker,
-            icon: Icon(Icons.switch_account_outlined, color: palette.brand),
-          ),
+          // Simulating "chat as another test identity" only makes sense for
+          // the shared family group — a direct chat has exactly one real
+          // counterpart, so faking the sender would be actively misleading.
+          if (widget.mode == ChatDetailMode.familyGroup)
+            IconButton(
+              tooltip: 'Testing: chat as…',
+              onPressed: _openIdentityPicker,
+              icon: Icon(Icons.switch_account_outlined, color: palette.brand),
+            ),
           Padding(
             padding: const EdgeInsets.only(right: VanamSpacing.md),
             child: Icon(Icons.lock_outline, size: 18, color: palette.brand),
@@ -234,7 +310,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           ValueListenableBuilder<String?>(
             valueListenable: testSenderOverride,
             builder: (context, active, _) {
-              if (active == null) return const SizedBox.shrink();
+              if (active == null || widget.mode != ChatDetailMode.familyGroup) {
+                return const SizedBox.shrink();
+              }
               return Container(
                 width: double.infinity,
                 color: palette.noticeSurface,
@@ -264,12 +342,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             ),
           Expanded(
             child: ValueListenableBuilder<List<ChatMessage>>(
-              valueListenable: widget._controller,
+              valueListenable: _messages,
               builder: (context, messages, _) {
                 if (messages.isEmpty) {
                   return Center(
                     child: Text(
-                      'No messages yet. Say hello to the family!',
+                      widget.mode == ChatDetailMode.familyGroup
+                          ? 'No messages yet. Say hello to the family!'
+                          : 'No messages yet. Say hello to ${widget.groupName}!',
                       style: TextStyle(color: palette.inkMuted),
                     ),
                   );
@@ -290,7 +370,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               },
             ),
           ),
-          _Composer(controller: _textController, onSend: _send),
+          _Composer(
+            controller: _textController,
+            onSend: _send,
+            hintText: widget.mode == ChatDetailMode.familyGroup
+                ? 'Message the family…'
+                : 'Message ${widget.groupName}…',
+          ),
         ],
       ),
     );
@@ -432,10 +518,15 @@ class _SystemEventNotice extends StatelessWidget {
 }
 
 class _Composer extends StatelessWidget {
-  const _Composer({required this.controller, required this.onSend});
+  const _Composer({
+    required this.controller,
+    required this.onSend,
+    required this.hintText,
+  });
 
   final TextEditingController controller;
   final VoidCallback onSend;
+  final String hintText;
 
   @override
   Widget build(BuildContext context) {
@@ -463,7 +554,7 @@ class _Composer extends StatelessWidget {
                 textCapitalization: TextCapitalization.sentences,
                 onSubmitted: (_) => onSend(),
                 decoration: InputDecoration(
-                  hintText: 'Message the family…',
+                  hintText: hintText,
                   filled: true,
                   fillColor: palette.surface,
                   contentPadding: const EdgeInsets.symmetric(

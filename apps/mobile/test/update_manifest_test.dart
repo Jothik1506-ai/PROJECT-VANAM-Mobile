@@ -24,9 +24,7 @@ Map<String, dynamic> validJson({
 void main() {
   group('UpdateManifest.fromJson', () {
     test('parses a well-formed manifest', () {
-      final m = UpdateManifest.fromJson(
-        validJson(minSupportedVersionCode: 3),
-      );
+      final m = UpdateManifest.fromJson(validJson(minSupportedVersionCode: 3));
       expect(m.latestVersionCode, 5);
       expect(m.latestVersionName, '1.2.0');
       expect(m.minSupportedVersionCode, 3);

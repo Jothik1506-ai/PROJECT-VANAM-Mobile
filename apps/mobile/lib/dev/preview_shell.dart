@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../home/home_feed_repository.dart';
+import '../notifications/in_app_notification_service.dart';
 import '../screens/coming_soon_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/messages_screen.dart';
@@ -26,7 +27,10 @@ class _PreviewShellState extends State<PreviewShell> {
   static const _screens = [
     ComingSoonScreen(label: 'Reels'),
     MessagesScreen(),
-    HomeScreen(repository: EmptyHomeFeedRepository()),
+    HomeScreen(
+      repository: EmptyHomeFeedRepository(),
+      notificationRepository: EmptyNotificationRepository(),
+    ),
     ProfileScreen(),
   ];
 
