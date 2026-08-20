@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../crypto/key_sync_service.dart';
+import '../notifications/push_notification_service.dart';
 import '../widgets/feedback_button.dart';
 import '../widgets/vanam_bottom_nav.dart';
 import 'admin_invites_screen.dart';
@@ -33,6 +34,7 @@ class _AppShellState extends State<AppShell> {
     // reaches here — straight in, or via SetPasswordScreen/
     // SetDisplayNameScreen first.
     keySyncService.ensurePublicKeyUploaded();
+    pushNotificationService.ensureTokenRegistered();
   }
 
   @override

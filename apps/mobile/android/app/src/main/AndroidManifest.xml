@@ -8,6 +8,9 @@
          confirms every install at the OS level. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
 
+    <!-- Android 13+ runtime notification permission for FCM. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
     <!-- Scanning an invite QR code (see login_screen.dart / qr_scan_screen.dart). -->
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
@@ -44,6 +47,17 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Notification icon for FCM-delivered (background/terminated)
+             messages — must be a flat white silhouette on transparent, not
+             the full-color launcher icon; Android tints/composites this
+             itself in the status bar. See ic_stat_vanam.png (generated
+             from assets/brand/Final.png by thresholding to just the glyph
+             strokes). Foreground notifications use the same drawable via
+             flutter_local_notifications' AndroidInitializationSettings. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@mipmap/ic_stat_vanam" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

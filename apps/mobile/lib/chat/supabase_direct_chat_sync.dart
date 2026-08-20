@@ -7,6 +7,8 @@ import '../crypto/key_sync_service.dart';
 import 'chat_message.dart';
 import 'direct_conversation.dart';
 
+final supabaseDirectChatSync = SupabaseDirectChatSync(Supabase.instance.client);
+
 /// Direct/personal chat — one conversation per pair of family members.
 /// Mirrors [SupabaseChatSync]'s shape, but talks to the direct_* RPCs and
 /// table (see supabase/migrations/20260819070000_direct_chat_messages.sql),
@@ -56,9 +58,7 @@ class SupabaseDirectChatSync {
   }) async {
     final key = await _conversationKey(conversationId);
     if (key == null) {
-      throw StateError(
-        'Encryption key not ready yet — try again in a moment',
-      );
+      throw StateError('Encryption key not ready yet — try again in a moment');
     }
     final ciphertext = await _e2ee.encryptMessage(
       plaintext: text,
@@ -67,7 +67,10 @@ class SupabaseDirectChatSync {
 
     final rows = await _client.rpc<List<dynamic>>(
       'send_direct_message',
-      params: {'p_conversation_id': conversationId, 'p_message_text': ciphertext},
+      params: {
+        'p_conversation_id': conversationId,
+        'p_message_text': ciphertext,
+      },
     );
     final row = rows.whereType<Map<String, dynamic>>().first;
     return _messageFromRpcRow(row, key);

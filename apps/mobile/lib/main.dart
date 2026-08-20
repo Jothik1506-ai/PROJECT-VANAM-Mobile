@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'chat/chat_controller.dart';
 import 'config/app_config.dart';
+import 'notifications/push_navigation.dart';
+import 'notifications/push_notification_service.dart';
 import 'profile/profile_controller.dart';
 import 'screens/auth_gate.dart';
 import 'theme/theme_controller.dart';
@@ -11,6 +13,7 @@ import 'widgets/update_check_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await pushNotificationService.initialize();
   await Supabase.initialize(
     url: AppConfig.supabaseUrl,
     publishableKey: AppConfig.supabaseAnonKey,
@@ -29,6 +32,7 @@ class VanamApp extends StatelessWidget {
       valueListenable: vanamThemeMode,
       builder: (context, themeMode, child) {
         return MaterialApp(
+          navigatorKey: vanamNavigatorKey,
           title: 'Vanam',
           debugShowCheckedModeBanner: false,
           theme: buildVanamTheme(),

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "149725084998",
+    "project_id": "vanam-library",
+    "storage_bucket": "vanam-library.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:149725084998:android:398a53df36d22bcde63947",
+        "android_client_info": {
+          "package_name": "in.aivafreelancia.vanam.vanam_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBe3Wz75IEPt00XvG3Nl2UJB4zFnEhS49I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

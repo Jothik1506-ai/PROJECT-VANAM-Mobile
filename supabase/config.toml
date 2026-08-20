@@ -1,0 +1,12 @@
+project_id = "yweghwsgxstrdodjrvey"
+
+# push-notifications is called server-to-server by a pg_net trigger
+# (send_push_notification_event_webhook — see migrations/
+# 20260820060000_push_notification_webhook_trigger.sql), which sends no
+# Authorization/JWT header. Auth is instead the x-vanam-push-secret header
+# checked inside the function itself. verify_jwt must stay false here, or
+# `supabase functions deploy` with no flags will silently re-enable JWT
+# verification and every trigger-fired call will 401 before reaching the
+# function (exactly what happened once already).
+[functions.push-notifications]
+verify_jwt = false
