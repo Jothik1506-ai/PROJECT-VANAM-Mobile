@@ -14,7 +14,9 @@
 #>
 
 param(
-    [string]$OutputDir = ""
+    [string]$OutputDir = "",
+    [string]$WorkManagerActivityUrl = "https://manager.aivafreelancia.in/api/vanam/mobile/activity",
+    [string]$WorkManagerActivitySecret = $env:WORK_MANAGER_ACTIVITY_SECRET
 )
 
 $ErrorActionPreference = "Stop"
@@ -53,7 +55,14 @@ Write-Host ""
 
 Push-Location $appDir
 try {
-    & flutter build apk --release
+    $buildArgs = @(
+        "build", "apk", "--release",
+        "--dart-define=WORK_MANAGER_ACTIVITY_URL=$WorkManagerActivityUrl"
+    )
+    if ($WorkManagerActivitySecret) {
+        $buildArgs += "--dart-define=WORK_MANAGER_ACTIVITY_SECRET=$WorkManagerActivitySecret"
+    }
+    & flutter @buildArgs
     if ($LASTEXITCODE -ne 0) { throw "flutter build failed (exit $LASTEXITCODE)" }
 }
 finally {
@@ -103,9 +112,9 @@ $manifest = [ordered]@{
     apkUrl                  = "https://updates.vanam.aivafreelancia.in/$releaseName"
     sha256                  = $sha
     sizeBytes               = $sizeBytes
-    releaseNotes            = "TODO: describe this release for the family."
-    releaseNotesTe          = "TODO"
-    publishedAt             = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    releaseNotes            = "Home post sharing to Vanam chats, Work Manager mobile activity reporting, and fresh signed release build."
+    releaseNotesTe          = "Vanam chats lo home post share, Work Manager mobile activity reporting, mariyu fresh signed release build."
+    publishedAt             = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'")
 }
 
 $manifestPath = Join-Path $OutputDir "manifest.json"
