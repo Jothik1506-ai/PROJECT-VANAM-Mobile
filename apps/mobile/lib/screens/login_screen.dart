@@ -4,6 +4,7 @@ import '../auth/auth_service.dart';
 import '../theme/tokens.dart';
 import '../widgets/feedback_button.dart';
 import '../widgets/vanam_logo.dart';
+import '../work_manager/work_manager_activity.dart';
 import 'app_shell.dart';
 import 'forgot_password_screen.dart';
 import 'qr_scan_screen.dart';
@@ -81,12 +82,16 @@ class _LoginScreenState extends State<LoginScreen> {
           password: password,
         );
         final profile = await authService.fetchMyProfile();
+        if (profile == null) {
+          throw const LoginException('Could not load your Vanam profile.');
+        }
+        await workManagerActivity.reportLogin(profile);
         if (!mounted) return;
         // pushReplacement, not push: Login shouldn't be reachable via back
         // once sign-in succeeds — there's nothing to "go back" to.
-        final isAdmin = profile?.isAdmin ?? false;
-        final nameConfirmed = profile?.nameConfirmed ?? true;
-        final passwordChanged = profile?.passwordChanged ?? true;
+        final isAdmin = profile.isAdmin;
+        final nameConfirmed = profile.nameConfirmed;
+        final passwordChanged = profile.passwordChanged;
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (_) => !passwordChanged
@@ -96,7 +101,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   )
                 : !nameConfirmed
                 ? SetDisplayNameScreen(isAdmin: isAdmin)
-                : AppShell(isAdmin: isAdmin),
+                : AppShell(isAdmin: isAdmin, profile: profile),
           ),
         );
       }

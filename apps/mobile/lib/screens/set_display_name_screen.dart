@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../auth/auth_service.dart';
 import '../profile/profile_controller.dart';
 import '../theme/tokens.dart';
+import '../work_manager/work_manager_activity.dart';
 import 'app_shell.dart';
 
 /// Shown once, right after a successful invite redemption: the member picks
@@ -51,10 +52,17 @@ class _SetDisplayNameScreenState extends State<SetDisplayNameScreen> {
       await profileController.save(
         profileController.value.copyWith(name: name),
       );
+      final profile = await authService.fetchMyProfile();
+      if (profile == null) {
+        throw const SetDisplayNameException(
+          'Could not load your Vanam profile.',
+        );
+      }
+      await workManagerActivity.reportLogin(profile);
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => AppShell(isAdmin: widget.isAdmin),
+          builder: (_) => AppShell(isAdmin: widget.isAdmin, profile: profile),
         ),
       );
     } on SetDisplayNameException catch (e) {

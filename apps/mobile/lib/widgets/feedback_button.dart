@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../feedback/work_manager_feedback.dart';
 import '../profile/profile_controller.dart';
 import '../theme/tokens.dart';
+import '../work_manager/work_manager_activity.dart';
 
 class FeedbackButton extends StatelessWidget {
   const FeedbackButton({super.key, required this.screen});
@@ -85,6 +86,7 @@ class _FeedbackDialogState extends State<_FeedbackDialog> {
         feedback: _feedbackController.text,
         screen: widget.screen,
       );
+      await workManagerActivity.reportFeedbackSent();
       if (!mounted) return;
       _feedbackController.clear();
       setState(() => _status = 'Feedback sent to Work Manager.');

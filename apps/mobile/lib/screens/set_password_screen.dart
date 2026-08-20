@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../auth/auth_service.dart';
 import '../theme/tokens.dart';
+import '../work_manager/work_manager_activity.dart';
 import 'app_shell.dart';
 import 'set_display_name_screen.dart';
 
@@ -53,11 +54,16 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
 
     try {
       await authService.changeOwnPassword(_passwordController.text);
+      final profile = await authService.fetchMyProfile();
+      if (profile == null) {
+        throw const LoginException('Could not load your Vanam profile.');
+      }
+      await workManagerActivity.reportLogin(profile);
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => widget.nameConfirmed
-              ? AppShell(isAdmin: widget.isAdmin)
+              ? AppShell(isAdmin: widget.isAdmin, profile: profile)
               : SetDisplayNameScreen(isAdmin: widget.isAdmin),
         ),
       );

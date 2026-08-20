@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../work_manager/work_manager_activity.dart';
 import 'push_navigation.dart';
 
 final pushNotificationService = PushNotificationService();
@@ -141,5 +142,6 @@ class PushNotificationService {
         'p_app_version': '${info.version}+${info.buildNumber}',
       },
     );
+    await workManagerActivity.reportPushTokenRegistered();
   }
 }

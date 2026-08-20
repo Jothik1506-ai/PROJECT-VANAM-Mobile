@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../auth/auth_service.dart';
+import '../work_manager/work_manager_activity.dart';
 import 'app_shell.dart';
 import 'login_screen.dart';
 import 'set_display_name_screen.dart';
@@ -50,7 +51,8 @@ class _AuthGateState extends State<AuthGate> {
       if (!profile.nameConfirmed) {
         return SetDisplayNameScreen(isAdmin: profile.isAdmin);
       }
-      return AppShell(isAdmin: profile.isAdmin);
+      await workManagerActivity.reportLogin(profile);
+      return AppShell(isAdmin: profile.isAdmin, profile: profile);
     } catch (_) {
       // Offline or a transient error resolving the profile must not strand
       // the user on a blank screen — Login can always be retried.

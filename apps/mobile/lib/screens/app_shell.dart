@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../auth/family_profile.dart';
 import '../crypto/key_sync_service.dart';
 import '../notifications/push_notification_service.dart';
 import '../widgets/feedback_button.dart';
 import '../widgets/vanam_bottom_nav.dart';
+import '../work_manager/work_manager_activity.dart';
 import 'admin_invites_screen.dart';
 import 'home_screen.dart';
 import 'messages_screen.dart';
@@ -11,9 +13,10 @@ import 'profile_screen.dart';
 import 'reels_screen.dart';
 
 class AppShell extends StatefulWidget {
-  const AppShell({super.key, required this.isAdmin});
+  const AppShell({super.key, required this.isAdmin, required this.profile});
 
   final bool isAdmin;
+  final FamilyProfile profile;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -34,6 +37,7 @@ class _AppShellState extends State<AppShell> {
     // reaches here — straight in, or via SetPasswordScreen/
     // SetDisplayNameScreen first.
     keySyncService.ensurePublicKeyUploaded();
+    workManagerActivity.reportActive(profile: widget.profile, force: true);
     pushNotificationService.ensureTokenRegistered();
   }
 
@@ -66,7 +70,10 @@ class _AppShellState extends State<AppShell> {
     return Scaffold(
       body: PageView(
         controller: _pageController,
-        onPageChanged: (i) => setState(() => _index = i),
+        onPageChanged: (i) {
+          setState(() => _index = i);
+          workManagerActivity.reportActive(profile: widget.profile);
+        },
         children: screens,
       ),
       floatingActionButton: _GlobalActions(
