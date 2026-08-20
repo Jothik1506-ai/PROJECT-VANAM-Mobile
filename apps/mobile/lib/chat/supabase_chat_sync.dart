@@ -119,7 +119,10 @@ class SupabaseChatSync {
   ) async {
     if (kind == ChatMessageKind.system) {
       try {
-        return utf8.decode(base64Decode(base64Body));
+        // Postgres's encode(bytea,'base64') line-wraps every 76 chars —
+        // strip before decoding (see E2eeService's note on the same issue).
+        final cleaned = base64Body.replaceAll(RegExp(r'\s+'), '');
+        return utf8.decode(base64Decode(cleaned));
       } catch (_) {
         return '';
       }

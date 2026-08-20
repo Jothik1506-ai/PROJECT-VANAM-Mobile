@@ -97,5 +97,43 @@ void main() {
       final result = await e2ee.unsealMyKey('not-valid-base64-sealed-data');
       expect(result, isNull);
     });
+
+    test('unseals correctly when the server line-wraps the base64 like '
+        "Postgres's encode(bytea,'base64') does", () async {
+      // A sealed key (32 ephemeral pubkey + 32 ciphertext + 16 tag = 80
+      // bytes) base64-encodes to >76 chars, which is exactly the length
+      // Postgres's encode() starts inserting a newline at — this is the
+      // real bug this test guards: it's invisible on short payloads.
+      final symmetricKey = e2ee.generateSymmetricKey();
+      final recipientPublicKey = await e2ee.myPublicKeyBase64();
+      final sealed = await e2ee.sealKeyFor(
+        symmetricKey: symmetricKey,
+        recipientPublicKeyBase64: recipientPublicKey,
+      );
+      expect(sealed.length, greaterThan(76));
+
+      final wrapped = '${sealed.substring(0, 76)}\n${sealed.substring(76)}';
+      final unsealed = await e2ee.unsealMyKey(wrapped);
+      expect(unsealed, symmetricKey);
+    });
+
+    test('decryptMessage tolerates a line-wrapped ciphertext too', () async {
+      final key = e2ee.generateSymmetricKey();
+      final ciphertext = await e2ee.encryptMessage(
+        plaintext: 'A message long enough that its base64 ciphertext '
+            'exceeds seventy-six characters once encoded, matching what '
+            "Postgres's encode() would line-wrap in production.",
+        symmetricKey: key,
+      );
+      expect(ciphertext.length, greaterThan(76));
+
+      final wrapped =
+          '${ciphertext.substring(0, 76)}\n${ciphertext.substring(76)}';
+      final decrypted = await e2ee.decryptMessage(
+        ciphertextBase64: wrapped,
+        symmetricKey: key,
+      );
+      expect(decrypted, isNotNull);
+    });
   });
 }

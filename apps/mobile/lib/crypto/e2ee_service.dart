@@ -114,7 +114,7 @@ class E2eeService {
   /// rather than throwing — callers treat that as "not ready yet".
   Future<Uint8List?> unsealMyKey(String sealedBase64) async {
     try {
-      final sealed = base64Decode(sealedBase64);
+      final sealed = base64Decode(_stripWhitespace(sealedBase64));
       if (sealed.length < 32 + 16) return null; // ephemeral pubkey + min tag
 
       final ephemeralPublicKeyBytes = sealed.sublist(0, 32);
@@ -151,6 +151,13 @@ class E2eeService {
     }
   }
 
+  /// Postgres's `encode(bytes, 'base64')` line-wraps every 76 characters
+  /// (MIME-style) — Dart's base64Decode rejects embedded newlines, so
+  /// anything round-tripped through a `text` RPC param needs this before
+  /// decoding. Short payloads never hit the wrap length, which is why this
+  /// only shows up for longer ciphertext/sealed keys.
+  static String _stripWhitespace(String s) => s.replaceAll(RegExp(r'\s+'), '');
+
   /// Encrypts a chat message body with a chat scope's symmetric key.
   /// Output: 12-byte nonce || ciphertext || 16-byte tag, base64-encoded —
   /// this is exactly what lands in the `body bytea` column (via the RPC's
@@ -183,7 +190,7 @@ class E2eeService {
     required Uint8List symmetricKey,
   }) async {
     try {
-      final packed = base64Decode(ciphertextBase64);
+      final packed = base64Decode(_stripWhitespace(ciphertextBase64));
       if (packed.length < 12 + 16) return null;
       final nonce = packed.sublist(0, 12);
       final rest = packed.sublist(12);
