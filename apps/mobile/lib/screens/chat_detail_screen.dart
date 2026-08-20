@@ -163,12 +163,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         _messages.value = [..._messages.value, message]
           ..sort((a, b) => a.sentAt.compareTo(b.sentAt));
       }
-    } catch (_) {
+    } catch (error) {
       _textController.text = text;
       if (!mounted) return;
+      final encryptionSyncing = error.toString().contains(
+        'Encryption key not ready',
+      );
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not send. Check connection and try again.'),
+        SnackBar(
+          content: Text(
+            encryptionSyncing
+                ? 'Encryption is syncing. Ask the other family member to open this chat, then try again.'
+                : 'Could not send. Check connection and try again.',
+          ),
         ),
       );
       return;

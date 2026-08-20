@@ -22,6 +22,7 @@ class KeySyncService {
   final _e2ee = E2eeService.instance;
 
   final Map<String, Uint8List> _cache = {};
+  Future<void>? _publicKeyReady;
 
   String _cacheKey(String scope, String scopeId) => '$scope:$scopeId';
 
@@ -29,6 +30,20 @@ class KeySyncService {
   /// already there — the prerequisite for anyone to ever seal a key for
   /// this member. Safe to call on every app start; it's a no-op once set.
   Future<void> ensurePublicKeyUploaded() async {
+    final existing = _publicKeyReady;
+    if (existing != null) return existing;
+
+    final upload = _ensurePublicKeyUploaded();
+    _publicKeyReady = upload;
+    try {
+      await upload;
+    } catch (_) {
+      if (identical(_publicKeyReady, upload)) _publicKeyReady = null;
+      rethrow;
+    }
+  }
+
+  Future<void> _ensurePublicKeyUploaded() async {
     final uid = _client.auth.currentUser?.id;
     if (uid == null) return;
 
@@ -52,6 +67,7 @@ class KeySyncService {
     required String scope,
     required String scopeId,
   }) async {
+    await ensurePublicKeyUploaded();
     final cacheKey = _cacheKey(scope, scopeId);
     final cached = _cache[cacheKey];
     if (cached != null) return cached;
@@ -65,8 +81,17 @@ class KeySyncService {
       if (key != null) {
         _cache[cacheKey] = key;
         await resealForMissingMembers(scope: scope, scopeId: scopeId, key: key);
+        return key;
       }
-      return key;
+
+      // This wrap was sealed to a private key that no longer exists, which
+      // happens after reinstall/clear-data. Remove only our unusable copy;
+      // another participant that still has the scope key will reseal it for
+      // the new public key on their next refresh/open.
+      await _client.rpc(
+        'delete_own_key_wrap',
+        params: {'p_scope': scope, 'p_scope_id': scopeId},
+      );
     }
 
     // No wrap for me yet. If nothing has ever been created for this scope,
@@ -74,13 +99,10 @@ class KeySyncService {
     // wins — key_wraps' unique constraint makes a second concurrent
     // creator's self-wrap a harmless no-op via ON CONFLICT DO NOTHING,
     // they'll just pick up the real key from their own reseal pass next).
-    final exists = scope == 'group'
-        ? await _client.rpc<bool>('group_key_exists')
-        : (await _client.rpc<String?>(
-                'fetch_my_key_wrap',
-                params: {'p_scope': scope, 'p_scope_id': scopeId},
-              ) !=
-              null);
+    final exists = await _client.rpc<bool>(
+      'scope_key_exists',
+      params: {'p_scope': scope, 'p_scope_id': scopeId},
+    );
     if (exists) return null;
 
     final newKey = _e2ee.generateSymmetricKey();
@@ -137,6 +159,33 @@ class KeySyncService {
           'p_sealed_key': sealed,
         },
       );
+    }
+  }
+
+  /// Refreshes every chat this member can access. A keyed device calling
+  /// this on app start automatically reseals missing wraps for a family
+  /// member who reinstalled, without requiring each chat to be opened.
+  Future<void> refreshAccessibleScopes() async {
+    try {
+      await ensurePublicKeyUploaded();
+      await getScopeKey(scope: 'group', scopeId: 'family-group');
+
+      final rows = await _client.rpc<List<dynamic>>(
+        'list_direct_conversations',
+      );
+      for (final row in rows.whereType<Map<String, dynamic>>()) {
+        final conversationId = row['conversation_id'] as String?;
+        if (conversationId == null) continue;
+        try {
+          await getScopeKey(scope: 'direct', scopeId: conversationId);
+        } catch (_) {
+          // One damaged/new conversation must not prevent the remaining
+          // conversations from refreshing their wraps.
+        }
+      }
+    } catch (_) {
+      // Startup key refresh is opportunistic. Chat screens retry and show a
+      // specific encryption-sync message when connectivity is unavailable.
     }
   }
 }

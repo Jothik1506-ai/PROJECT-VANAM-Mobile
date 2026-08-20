@@ -1,12 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../auth/family_profile.dart';
+import '../auth/auth_service.dart';
 import '../crypto/key_sync_service.dart';
 import '../notifications/push_notification_service.dart';
 import '../widgets/feedback_button.dart';
 import '../widgets/vanam_bottom_nav.dart';
 import '../work_manager/work_manager_activity.dart';
 import 'admin_invites_screen.dart';
+import 'auth_gate.dart';
 import 'home_screen.dart';
 import 'messages_screen.dart';
 import 'profile_screen.dart';
@@ -22,29 +26,71 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int _index = 2;
   late final _pageController = PageController(initialPage: _index);
+  Timer? _accessCheckTimer;
+  bool _checkingAccess = false;
 
   static const _screenLabels = ['Reels', 'Messages', 'Home', 'Profile'];
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Fire-and-forget: uploads this device's E2EE public key if it hasn't
     // already. Runs every time the app shell mounts (cheap no-op once
     // set) rather than in AuthGate, so it fires on every path that
     // reaches here — straight in, or via SetPasswordScreen/
     // SetDisplayNameScreen first.
-    keySyncService.ensurePublicKeyUploaded();
+    keySyncService.refreshAccessibleScopes();
     workManagerActivity.reportActive(profile: widget.profile, force: true);
     pushNotificationService.ensureTokenRegistered();
+    _accessCheckTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _enforceAccountAccess(),
+    );
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _accessCheckTimer?.cancel();
     _pageController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _enforceAccountAccess();
+  }
+
+  Future<void> _enforceAccountAccess() async {
+    if (_checkingAccess || !mounted) return;
+    _checkingAccess = true;
+    try {
+      final profile = await authService.fetchMyProfile();
+      if (profile != null && profile.status == 'active') {
+        if (profile.role == widget.profile.role) return;
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const AuthGate()),
+          (_) => false,
+        );
+        return;
+      }
+
+      await authService.signOut();
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const AuthGate()),
+        (_) => false,
+      );
+    } catch (_) {
+      // A temporary network failure must never log a valid member out.
+    } finally {
+      _checkingAccess = false;
+    }
   }
 
   // Tapping a tab animates the PageView to it; onPageChanged (below) is what

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/family_profile.dart';
 
@@ -75,6 +76,7 @@ class WorkManagerActivity {
     if (!_configured || profile == null) return;
 
     final info = await PackageInfo.fromPlatform();
+    final sessionId = _currentSessionId();
     final payload = <String, Object?>{
       'familyMemberId': profile.id,
       'displayName': profile.displayName,
@@ -84,6 +86,7 @@ class WorkManagerActivity {
       'platform': Platform.isAndroid ? 'android' : Platform.operatingSystem,
       'deviceLabel': Platform.operatingSystemVersion,
     };
+    if (sessionId != null) payload['sessionId'] = sessionId;
     if (pushTokenRegistered != null) {
       payload['pushTokenRegistered'] = pushTokenRegistered;
     }
@@ -116,6 +119,23 @@ class WorkManagerActivity {
       // Never block login, chat, push registration, or feedback on it.
     } finally {
       client.close(force: true);
+    }
+  }
+
+  String? _currentSessionId() {
+    final token = Supabase.instance.client.auth.currentSession?.accessToken;
+    if (token == null) return null;
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return null;
+      final payload = jsonDecode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+      );
+      if (payload is! Map<String, dynamic>) return null;
+      final value = payload['session_id'];
+      return value is String && value.isNotEmpty ? value : null;
+    } catch (_) {
+      return null;
     }
   }
 }

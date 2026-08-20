@@ -40,6 +40,10 @@ See docs/OTA-RELEASES.md section 2.
     exit 1
 }
 
+if (-not $WorkManagerActivitySecret) {
+    throw "WORK_MANAGER_ACTIVITY_SECRET is required for a release build."
+}
+
 # --- read version from pubspec (single source of truth) -------------------
 $pubspec = Get-Content (Join-Path $appDir "pubspec.yaml") -Raw
 if ($pubspec -notmatch '(?m)^version:\s*([0-9]+\.[0-9]+\.[0-9]+)\+([0-9]+)\s*$') {
@@ -56,12 +60,11 @@ Write-Host ""
 Push-Location $appDir
 try {
     $buildArgs = @(
-        "build", "apk", "--release",
+        "build", "apk", "--release", "--flavor", "ota",
+        "--dart-define=VANAM_UPDATE_CHECKS_ENABLED=true",
         "--dart-define=WORK_MANAGER_ACTIVITY_URL=$WorkManagerActivityUrl"
     )
-    if ($WorkManagerActivitySecret) {
-        $buildArgs += "--dart-define=WORK_MANAGER_ACTIVITY_SECRET=$WorkManagerActivitySecret"
-    }
+    $buildArgs += "--dart-define=WORK_MANAGER_ACTIVITY_SECRET=$WorkManagerActivitySecret"
     & flutter @buildArgs
     if ($LASTEXITCODE -ne 0) { throw "flutter build failed (exit $LASTEXITCODE)" }
 }
@@ -69,7 +72,7 @@ finally {
     Pop-Location
 }
 
-$apk = Join-Path $appDir "build\app\outputs\flutter-apk\app-release.apk"
+$apk = Join-Path $appDir "build\app\outputs\flutter-apk\app-ota-release.apk"
 if (-not (Test-Path $apk)) { throw "Expected APK not found at $apk" }
 
 # --- verify it is NOT debug-signed ----------------------------------------
@@ -105,11 +108,12 @@ $releaseName = "vanam-$versionName-$versionCode.apk"
 $releasePath = Join-Path $OutputDir $releaseName
 Copy-Item $apk $releasePath -Force
 
+$releaseTag = "v$versionName-$versionCode"
 $manifest = [ordered]@{
     latestVersionCode       = $versionCode
     latestVersionName       = $versionName
     minSupportedVersionCode = 0
-    apkUrl                  = "https://updates.vanam.aivafreelancia.in/$releaseName"
+    apkUrl                  = "https://github.com/Jothik1506-ai/PROJECT-VANAM-Mobile/releases/download/$releaseTag/$releaseName"
     sha256                  = $sha
     sizeBytes               = $sizeBytes
     releaseNotes            = "Home post sharing to Vanam chats, Work Manager mobile activity reporting, and fresh signed release build."

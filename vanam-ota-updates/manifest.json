@@ -1,10 +1,11 @@
 {
-  "latestVersionCode": 11,
+  "latestVersionCode": 13,
   "latestVersionName": "1.0.0",
   "minSupportedVersionCode": 1,
-  "apkUrl": "https://github.com/Jothik1506-ai/PROJECT-VANAM-Mobile/releases/download/v1.0.0-11-test/vanam-1.0.0-11.apk",
-  "sha256": "f0ece2f1fb5982b0eaf77621b00ef071cacdfb29dd4aae71c7c2f4aa56012e2e",
-  "sizeBytes": 175579071,
-  "releaseNotes": "Fixes message/key decryption for longer content (real bug in the previous test build). Real username/password accounts, QR login, end-to-end encrypted messages, change/forgot password, sign out.",
-  "publishedAt": "2026-08-20T11:37:00Z"
+  "apkUrl": "https://github.com/Jothik1506-ai/PROJECT-VANAM-Mobile/releases/download/v1.0.0-13/vanam-1.0.0-13.apk",
+  "sha256": "896ddcd074513f92cb1ec548afa0b1115bf75979bbcec4870c19d8b6defdc71b",
+  "sizeBytes": 72763714,
+  "releaseNotes": "Fixes chat encryption recovery after reinstalling or clearing app data. Adds automatic key refresh, Work Manager account controls, and automatic Admin/Owner permission refresh.",
+  "releaseNotesTe": "App reinstall leda data clear chesina tarvata chat encryption recovery fix. Automatic key refresh, Work Manager account controls, mariyu Admin/Owner permission refresh add chesam.",
+  "publishedAt": "2026-08-20T13:31:54Z"
 }
