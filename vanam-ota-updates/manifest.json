@@ -1,10 +1,10 @@
 {
-  "latestVersionCode": 4,
-  "latestVersionName": "1.0.3",
+  "latestVersionCode": 10,
+  "latestVersionName": "1.0.0",
   "minSupportedVersionCode": 1,
-  "apkUrl": "https://github.com/Jothik1506-ai/PROJECT-VANAM-Mobile/releases/download/v1.0.3-4/vanam-1.0.3-4.apk",
-  "sha256": "d578c322db54399532a59d7558e2e91928ec1ea00a988e6ae8b79a31d3afad7a",
-  "sizeBytes": 156766569,
-  "releaseNotes": "Fresh test build with test sender UI removed and cleanup support for old test members.",
-  "publishedAt": "2026-08-19T08:30:00Z"
+  "apkUrl": "https://github.com/Jothik1506-ai/PROJECT-VANAM-Mobile/releases/download/v1.0.0-10-test/vanam-1.0.0-10.apk",
+  "sha256": "8d424407446d76253cd266d4b71790ec63cf19b0727767434f0d73e67fb2302a",
+  "sizeBytes": 175571123,
+  "releaseNotes": "Real username/password accounts (with QR login), end-to-end encrypted messages, change/forgot password, sign out.",
+  "publishedAt": "2026-08-20T11:10:00Z"
 }
