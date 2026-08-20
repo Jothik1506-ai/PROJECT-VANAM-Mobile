@@ -1,10 +1,10 @@
 {
-  "latestVersionCode": 10,
+  "latestVersionCode": 11,
   "latestVersionName": "1.0.0",
   "minSupportedVersionCode": 1,
-  "apkUrl": "https://github.com/Jothik1506-ai/PROJECT-VANAM-Mobile/releases/download/v1.0.0-10-test/vanam-1.0.0-10.apk",
-  "sha256": "8d424407446d76253cd266d4b71790ec63cf19b0727767434f0d73e67fb2302a",
-  "sizeBytes": 175571123,
-  "releaseNotes": "Real username/password accounts (with QR login), end-to-end encrypted messages, change/forgot password, sign out.",
-  "publishedAt": "2026-08-20T11:10:00Z"
+  "apkUrl": "https://github.com/Jothik1506-ai/PROJECT-VANAM-Mobile/releases/download/v1.0.0-11-test/vanam-1.0.0-11.apk",
+  "sha256": "f0ece2f1fb5982b0eaf77621b00ef071cacdfb29dd4aae71c7c2f4aa56012e2e",
+  "sizeBytes": 175579071,
+  "releaseNotes": "Fixes message/key decryption for longer content (real bug in the previous test build). Real username/password accounts, QR login, end-to-end encrypted messages, change/forgot password, sign out.",
+  "publishedAt": "2026-08-20T11:37:00Z"
 }
