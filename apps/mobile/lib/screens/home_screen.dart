@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../chat/direct_conversation.dart';
+import '../chat/supabase_chat_sync.dart';
+import '../chat/supabase_direct_chat_sync.dart';
 import '../home/home_feed_repository.dart';
 import '../models/family_member.dart';
 import '../models/post.dart';
@@ -392,10 +395,69 @@ class _CommentsSheetState extends State<_CommentsSheet> {
   }
 }
 
-class _InAppShareSheet extends StatelessWidget {
+class _InAppShareSheet extends StatefulWidget {
   const _InAppShareSheet({required this.post});
 
   final Post post;
+
+  @override
+  State<_InAppShareSheet> createState() => _InAppShareSheetState();
+}
+
+class _InAppShareSheetState extends State<_InAppShareSheet> {
+  late final Future<List<DirectConversation>> _directConversations =
+      SupabaseDirectChatSync(Supabase.instance.client).listConversations();
+  var _sharingTarget = '';
+
+  String get _shareText {
+    final caption = widget.post.caption.trim();
+    final label = caption.isEmpty
+        ? 'Photo post by ${widget.post.authorName}'
+        : caption;
+    return [
+      'Shared from Home',
+      '${widget.post.authorName}: $label',
+      if (widget.post.mediaUrls.isNotEmpty)
+        '${widget.post.mediaUrls.length} photo${widget.post.mediaUrls.length == 1 ? '' : 's'} in this post',
+    ].join('\n');
+  }
+
+  Future<void> _shareToFamilyGroup() async {
+    await _runShare('family-group', () {
+      return SupabaseChatSync(
+        Supabase.instance.client,
+      ).sendMessage(text: _shareText);
+    });
+  }
+
+  Future<void> _shareToDirect(DirectConversation conversation) async {
+    await _runShare(conversation.conversationId, () {
+      return SupabaseDirectChatSync(Supabase.instance.client).sendMessage(
+        conversationId: conversation.conversationId,
+        text: _shareText,
+      );
+    });
+  }
+
+  Future<void> _runShare(String target, Future<void> Function() send) async {
+    if (_sharingTarget.isNotEmpty) return;
+    setState(() => _sharingTarget = target);
+    try {
+      await send();
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Post shared in Vanam.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not share post: $error')));
+    } finally {
+      if (mounted) setState(() => _sharingTarget = '');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -416,7 +478,7 @@ class _InAppShareSheet extends StatelessWidget {
           ),
           const SizedBox(height: VanamSpacing.sm),
           Text(
-            'In-app sharing is ready for the family group flow. Direct share to chats will be connected when post-to-chat is added.',
+            'Send this post into an encrypted family or direct chat.',
             style: TextStyle(color: palette.inkMuted),
           ),
           const SizedBox(height: VanamSpacing.md),
@@ -429,16 +491,72 @@ class _InAppShareSheet extends StatelessWidget {
               border: Border.all(color: palette.noticeBorder),
             ),
             child: Text(
-              post.caption.isEmpty
-                  ? 'Photo post by ${post.authorName}'
-                  : post.caption,
+              widget.post.caption.isEmpty
+                  ? 'Photo post by ${widget.post.authorName}'
+                  : widget.post.caption,
               style: TextStyle(color: palette.brandStrong),
             ),
           ),
           const SizedBox(height: VanamSpacing.md),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Done'),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.groups_outlined),
+            title: const Text('Family Group'),
+            subtitle: const Text('Share with everyone'),
+            trailing: _sharingTarget == 'family-group'
+                ? const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.send_outlined),
+            onTap: _sharingTarget.isEmpty ? _shareToFamilyGroup : null,
+          ),
+          FutureBuilder<List<DirectConversation>>(
+            future: _directConversations,
+            builder: (context, snapshot) {
+              final conversations = snapshot.data ?? const [];
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.all(VanamSpacing.md),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (conversations.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.only(top: VanamSpacing.sm),
+                  child: Text(
+                    'No direct chats available yet.',
+                    style: TextStyle(color: palette.inkMuted),
+                  ),
+                );
+              }
+              return Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: conversations.length,
+                  itemBuilder: (context, index) {
+                    final conversation = conversations[index];
+                    final isSharing =
+                        _sharingTarget == conversation.conversationId;
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: MemberAvatar(name: conversation.otherDisplayName),
+                      title: Text(conversation.otherDisplayName),
+                      subtitle: const Text('Direct chat'),
+                      trailing: isSharing
+                          ? const SizedBox.square(
+                              dimension: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.send_outlined),
+                      onTap: _sharingTarget.isEmpty
+                          ? () => _shareToDirect(conversation)
+                          : null,
+                    );
+                  },
+                ),
+              );
+            },
           ),
         ],
       ),
