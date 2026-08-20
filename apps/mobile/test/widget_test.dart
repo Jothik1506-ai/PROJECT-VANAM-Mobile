@@ -16,17 +16,17 @@ Widget _wrap(Widget child) =>
 
 void main() {
   testWidgets(
-    'Login screen shows invite code + PIN fields, no password/signup',
+    'Login screen shows username + password fields, no open signup',
     (WidgetTester tester) async {
       await tester.pumpWidget(_wrap(const LoginScreen()));
 
       expect(find.text('Welcome to Vanam'), findsOneWidget);
-      expect(find.text('Invite code'), findsOneWidget);
-      expect(find.text('PIN'), findsOneWidget);
+      expect(find.text('Username'), findsOneWidget);
+      expect(find.text('Password'), findsOneWidget);
       expect(find.text('Log In'), findsOneWidget);
+      expect(find.text('Scan QR instead'), findsOneWidget);
 
       // No open-registration UI should ever appear on this screen.
-      expect(find.text('Password'), findsNothing);
       expect(find.text('Sign Up'), findsNothing);
       expect(find.textContaining('Google'), findsNothing);
     },
@@ -41,9 +41,9 @@ void main() {
     await tester.pump();
 
     expect(
-      find.text('Enter the invite code your admin shared'),
+      find.text('Enter the username your admin gave you'),
       findsOneWidget,
     );
-    expect(find.text('Enter the PIN your admin gave you'), findsOneWidget);
+    expect(find.text('Enter your password'), findsOneWidget);
   });
 }

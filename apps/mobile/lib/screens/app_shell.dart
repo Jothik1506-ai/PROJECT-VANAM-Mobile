@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../crypto/key_sync_service.dart';
 import '../widgets/feedback_button.dart';
 import '../widgets/vanam_bottom_nav.dart';
 import 'admin_invites_screen.dart';
@@ -22,6 +23,17 @@ class _AppShellState extends State<AppShell> {
   late final _pageController = PageController(initialPage: _index);
 
   static const _screenLabels = ['Reels', 'Messages', 'Home', 'Profile'];
+
+  @override
+  void initState() {
+    super.initState();
+    // Fire-and-forget: uploads this device's E2EE public key if it hasn't
+    // already. Runs every time the app shell mounts (cheap no-op once
+    // set) rather than in AuthGate, so it fires on every path that
+    // reaches here — straight in, or via SetPasswordScreen/
+    // SetDisplayNameScreen first.
+    keySyncService.ensurePublicKeyUploaded();
+  }
 
   @override
   void dispose() {

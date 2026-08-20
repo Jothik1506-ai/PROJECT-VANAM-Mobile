@@ -3,12 +3,15 @@ import 'package:vanam_mobile/invites/invite_qr_codec.dart';
 
 void main() {
   group('InviteQrCodec', () {
-    test('round-trips a real code + pin', () {
-      final encoded = InviteQrCodec.encode(code: 'VANAM-7F2K9Q', pin: '8420');
-      expect(encoded, 'VANAM1:VANAM-7F2K9Q:8420');
+    test('round-trips a real username + password', () {
+      final encoded = InviteQrCodec.encode(
+        username: 'vanam_jothik',
+        password: 'vanam_2026',
+      );
+      expect(encoded, 'VANAM2:vanam_jothik:vanam_2026');
 
       final decoded = InviteQrCodec.decode(encoded);
-      expect(decoded, ('VANAM-7F2K9Q', '8420'));
+      expect(decoded, ('vanam_jothik', 'vanam_2026'));
     });
 
     test('rejects a QR payload from something unrelated', () {
@@ -18,18 +21,18 @@ void main() {
     });
 
     test('rejects a payload with the wrong version prefix', () {
-      expect(InviteQrCodec.decode('VANAM2:VANAM-7F2K9Q:8420'), isNull);
+      expect(InviteQrCodec.decode('VANAM1:vanam_jothik:vanam_2026'), isNull);
     });
 
     test('rejects a malformed payload with missing parts', () {
-      expect(InviteQrCodec.decode('VANAM1:VANAM-7F2K9Q'), isNull);
-      expect(InviteQrCodec.decode('VANAM1::8420'), isNull);
-      expect(InviteQrCodec.decode('VANAM1:VANAM-7F2K9Q:'), isNull);
+      expect(InviteQrCodec.decode('VANAM2:vanam_jothik'), isNull);
+      expect(InviteQrCodec.decode('VANAM2::vanam_2026'), isNull);
+      expect(InviteQrCodec.decode('VANAM2:vanam_jothik:'), isNull);
     });
 
     test('trims stray whitespace from a scanned payload', () {
-      final decoded = InviteQrCodec.decode('  VANAM1:VANAM-7F2K9Q:8420  ');
-      expect(decoded, ('VANAM-7F2K9Q', '8420'));
+      final decoded = InviteQrCodec.decode('  VANAM2:vanam_jothik:vanam_2026  ');
+      expect(decoded, ('vanam_jothik', 'vanam_2026'));
     });
   });
 }

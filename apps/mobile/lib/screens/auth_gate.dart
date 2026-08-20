@@ -4,6 +4,7 @@ import '../auth/auth_service.dart';
 import 'app_shell.dart';
 import 'login_screen.dart';
 import 'set_display_name_screen.dart';
+import 'set_password_screen.dart';
 
 /// Real startup routing for the actual app (lib/main.dart).
 ///
@@ -35,10 +36,16 @@ class _AuthGateState extends State<AuthGate> {
     try {
       final profile = await authService.fetchMyProfile();
       if (profile == null) {
-        // Signed in (even anonymously) but never successfully redeemed an
-        // invite — RLS would show them nothing anyway. Send them to Login
-        // to actually redeem one.
+        // Signed in but has no linked profiles row — shouldn't normally
+        // happen for a real username/password account, but RLS would show
+        // them nothing anyway. Send them to Login.
         return const LoginScreen();
+      }
+      if (!profile.passwordChanged) {
+        return SetPasswordScreen(
+          isAdmin: profile.isAdmin,
+          nameConfirmed: profile.nameConfirmed,
+        );
       }
       if (!profile.nameConfirmed) {
         return SetDisplayNameScreen(isAdmin: profile.isAdmin);

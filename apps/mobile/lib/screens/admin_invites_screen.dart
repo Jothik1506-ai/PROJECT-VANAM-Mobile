@@ -8,9 +8,10 @@ import '../invites/invite_service.dart';
 import '../theme/tokens.dart';
 import 'chat_detail_screen.dart';
 
-/// Real admin screen — creates invites via the actual create_invite RPC,
-/// lists actual invite_codes rows. Reachable only for a session whose
-/// profiles.role = 'admin' (ARCHITECTURE.md Section 7). Not preview data.
+/// Real admin screen — creates real username/password member accounts via
+/// admin_create_member, lists actual profiles rows. Reachable only for a
+/// session whose profiles.role = 'admin' (ARCHITECTURE.md Section 7). Not
+/// preview data.
 class AdminInvitesScreen extends StatefulWidget {
   const AdminInvitesScreen({super.key});
 
@@ -48,21 +49,75 @@ class _AdminInvitesScreenState extends State<AdminInvitesScreen> {
     if (!mounted) return;
 
     try {
-      final (invite, pin) = await inviteService.createInvite(
-        inviteeName: name.trim(),
-      );
+      final (invite, username, password, recoveryCode) = await inviteService
+          .createInvite(inviteeName: name.trim());
       _refresh();
       if (mounted) {
-        await _InviteCreatedSheet.show(context, invite: invite, pin: pin);
+        await _InviteCreatedSheet.show(
+          context,
+          invite: invite,
+          username: username,
+          password: password,
+          recoveryCode: recoveryCode,
+        );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Could not create invite. Check your connection and try again.',
+              'Could not create member. Check your connection and try again.',
             ),
           ),
+        );
+      }
+    }
+  }
+
+  Future<void> _issueCredentials(Invite invite) async {
+    try {
+      final (username, password, recoveryCode) = await inviteService
+          .issueCredentials(invite.id);
+      _refresh();
+      if (mounted) {
+        await _InviteCreatedSheet.show(
+          context,
+          invite: invite,
+          username: username,
+          password: password,
+          recoveryCode: recoveryCode,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not issue login. Try again.'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _resetPassword(Invite invite) async {
+    try {
+      final (password, recoveryCode) = await inviteService.resetPassword(
+        invite.id,
+      );
+      _refresh();
+      if (mounted) {
+        await _InviteCreatedSheet.show(
+          context,
+          invite: invite,
+          username: invite.username ?? '',
+          password: password,
+          recoveryCode: recoveryCode,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not reset password. Try again.')),
         );
       }
     }
@@ -73,7 +128,7 @@ class _AdminInvitesScreenState extends State<AdminInvitesScreen> {
     final palette = context.vanam;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Family Invites'),
+        title: const Text('Family Members'),
         actions: [
           IconButton(
             tooltip: 'Family Group chat',
@@ -90,7 +145,7 @@ class _AdminInvitesScreenState extends State<AdminInvitesScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _createInvite,
         icon: const Icon(Icons.person_add_alt_1),
-        label: const Text('New Invite'),
+        label: const Text('New Member'),
       ),
       body: RefreshIndicator(
         onRefresh: () async => _refresh(),
@@ -106,7 +161,7 @@ class _AdminInvitesScreenState extends State<AdminInvitesScreen> {
                   Padding(
                     padding: const EdgeInsets.all(VanamSpacing.xl),
                     child: Text(
-                      'Could not load invites. Pull down to retry.',
+                      'Could not load members. Pull down to retry.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: palette.inkMuted),
                     ),
@@ -121,7 +176,7 @@ class _AdminInvitesScreenState extends State<AdminInvitesScreen> {
                   Padding(
                     padding: const EdgeInsets.all(VanamSpacing.xl),
                     child: Text(
-                      'No invites yet. Tap "New Invite" to add a family '
+                      'No members yet. Tap "New Member" to add a family '
                       'member.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: palette.inkMuted),
@@ -140,8 +195,12 @@ class _AdminInvitesScreenState extends State<AdminInvitesScreen> {
               itemCount: invites.length,
               separatorBuilder: (context, index) =>
                   const SizedBox(height: VanamSpacing.sm),
-              itemBuilder: (context, i) =>
-                  _InviteTile(invite: invites[i], onRevoked: _refresh),
+              itemBuilder: (context, i) => _InviteTile(
+                invite: invites[i],
+                onRevoked: _refresh,
+                onIssueCredentials: () => _issueCredentials(invites[i]),
+                onResetPassword: () => _resetPassword(invites[i]),
+              ),
             );
           },
         ),
@@ -169,7 +228,7 @@ class _NewInviteDialogState extends State<_NewInviteDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Invite a family member'),
+      title: const Text('Add a family member'),
       content: TextField(
         controller: _controller,
         autofocus: true,
@@ -184,7 +243,7 @@ class _NewInviteDialogState extends State<_NewInviteDialog> {
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(_controller.text),
-          child: const Text('Generate Invite'),
+          child: const Text('Create Login'),
         ),
       ],
     );
@@ -192,21 +251,35 @@ class _NewInviteDialogState extends State<_NewInviteDialog> {
 }
 
 class _InviteCreatedSheet extends StatelessWidget {
-  const _InviteCreatedSheet({required this.invite, required this.pin});
+  const _InviteCreatedSheet({
+    required this.invite,
+    required this.username,
+    required this.password,
+    required this.recoveryCode,
+  });
 
   final Invite invite;
-  final String pin;
+  final String username;
+  final String password;
+  final String recoveryCode;
 
   static Future<void> show(
     BuildContext context, {
     required Invite invite,
-    required String pin,
+    required String username,
+    required String password,
+    required String recoveryCode,
   }) {
     return showModalBottomSheet<void>(
       context: context,
       isDismissible: false,
       enableDrag: false,
-      builder: (_) => _InviteCreatedSheet(invite: invite, pin: pin),
+      builder: (_) => _InviteCreatedSheet(
+        invite: invite,
+        username: username,
+        password: password,
+        recoveryCode: recoveryCode,
+      ),
     );
   }
 
@@ -214,22 +287,26 @@ class _InviteCreatedSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.vanam;
     final shareText =
-        'Join our family on Vanam!\nInvite code: ${invite.code}\nPIN: $pin\n'
-        '(Expires ${invite.expiresAt.toLocal().toString().split(' ').first})';
+        'Join our family on Vanam!\nUsername: $username\nPassword: $password\n'
+        'Recovery code (keep this safe, only shown once): $recoveryCode\n'
+        "(You'll be asked to set your own password on first login. If you "
+        'forget it later, use "Forgot password?" on the Login screen with '
+        'the recovery code above.)';
 
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(VanamSpacing.lg),
-        // QR + code + PIN + copy button no longer reliably fits every phone
-        // height in one screen — scrollable so it clips instead of
-        // overflowing, rather than assuming every device is tall enough.
+        // QR + username + password + copy button no longer reliably fits
+        // every phone height in one screen — scrollable so it clips
+        // instead of overflowing, rather than assuming every device is
+        // tall enough.
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Invite ready for ${invite.inviteeName}',
+                'Login ready for ${invite.inviteeName}',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
@@ -238,8 +315,8 @@ class _InviteCreatedSheet extends StatelessWidget {
               ),
               const SizedBox(height: VanamSpacing.xs),
               Text(
-                'This PIN is shown only once. Copy or share it now — it '
-                "can't be recovered later, only reset with a new invite.",
+                'This password is shown only once. Copy or share it now — '
+                "it can't be recovered later, only reset.",
                 style: TextStyle(fontSize: 12, color: palette.danger),
               ),
               const SizedBox(height: VanamSpacing.md),
@@ -254,11 +331,11 @@ class _InviteCreatedSheet extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Invite code',
+                      'Username',
                       style: TextStyle(fontSize: 12, color: palette.inkMuted),
                     ),
                     SelectableText(
-                      invite.code,
+                      username,
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
@@ -268,17 +345,37 @@ class _InviteCreatedSheet extends StatelessWidget {
                     ),
                     const SizedBox(height: VanamSpacing.sm),
                     Text(
-                      'PIN',
+                      'Password',
                       style: TextStyle(fontSize: 12, color: palette.inkMuted),
                     ),
                     SelectableText(
-                      pin,
+                      password,
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
                         color: palette.brandStrong,
                         letterSpacing: 1.2,
                       ),
+                    ),
+                    const SizedBox(height: VanamSpacing.sm),
+                    Text(
+                      'Recovery code',
+                      style: TextStyle(fontSize: 12, color: palette.inkMuted),
+                    ),
+                    SelectableText(
+                      recoveryCode,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: palette.brandStrong,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'For "Forgot password?" if they lose their password '
+                      'later. Not the same as the password above.',
+                      style: TextStyle(fontSize: 11, color: palette.inkMuted),
                     ),
                   ],
                 ),
@@ -292,7 +389,10 @@ class _InviteCreatedSheet extends StatelessWidget {
                     borderRadius: BorderRadius.circular(VanamRadii.card),
                   ),
                   child: QrImageView(
-                    data: InviteQrCodec.encode(code: invite.code, pin: pin),
+                    data: InviteQrCodec.encode(
+                      username: username,
+                      password: password,
+                    ),
                     size: 180,
                     padding: EdgeInsets.zero,
                   ),
@@ -300,8 +400,9 @@ class _InviteCreatedSheet extends StatelessWidget {
               ),
               const SizedBox(height: VanamSpacing.xs),
               Text(
-                'Or let them scan this from the Login screen — faster than '
-                'typing the code and PIN.',
+                'Or let them scan this from the Login screen — signs them '
+                'in and walks them straight into setting their own '
+                'password.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12, color: palette.inkMuted),
               ),
@@ -318,7 +419,7 @@ class _InviteCreatedSheet extends StatelessWidget {
                   }
                 },
                 icon: const Icon(Icons.copy_all),
-                label: const Text('Copy invite details'),
+                label: const Text('Copy login details'),
               ),
               const SizedBox(height: VanamSpacing.sm),
               TextButton(
@@ -334,19 +435,26 @@ class _InviteCreatedSheet extends StatelessWidget {
 }
 
 class _InviteTile extends StatelessWidget {
-  const _InviteTile({required this.invite, required this.onRevoked});
+  const _InviteTile({
+    required this.invite,
+    required this.onRevoked,
+    required this.onIssueCredentials,
+    required this.onResetPassword,
+  });
 
   final Invite invite;
   final VoidCallback onRevoked;
+  final VoidCallback onIssueCredentials;
+  final VoidCallback onResetPassword;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.vanam;
     final (label, color) = switch (invite.status) {
-      InviteStatus.active => ('Active', palette.brand),
-      InviteStatus.used => ('Joined', palette.inkMuted),
-      InviteStatus.expired => ('Expired', palette.danger),
-      InviteStatus.revoked => ('Revoked / Locked', palette.danger),
+      MemberStatus.active => ('Active', palette.brand),
+      MemberStatus.pending => ('Awaiting first login', palette.inkMuted),
+      MemberStatus.revoked => ('Revoked', palette.danger),
+      MemberStatus.needsCredentials => ('Needs login', palette.danger),
     };
 
     return Container(
@@ -371,7 +479,7 @@ class _InviteTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  invite.code,
+                  invite.username ?? 'no login yet',
                   style: TextStyle(
                     fontSize: 12,
                     color: palette.inkMuted,
@@ -396,7 +504,26 @@ class _InviteTile extends StatelessWidget {
               ),
             ),
           ),
-          if (invite.status == InviteStatus.active) ...[
+          if (invite.status == MemberStatus.needsCredentials) ...[
+            const SizedBox(width: VanamSpacing.xs),
+            IconButton(
+              tooltip: 'Issue login',
+              icon: Icon(Icons.key, size: 18, color: palette.brand),
+              onPressed: onIssueCredentials,
+            ),
+          ],
+          if (invite.status == MemberStatus.active ||
+              invite.status == MemberStatus.pending) ...[
+            const SizedBox(width: VanamSpacing.xs),
+            IconButton(
+              tooltip: 'Reset password',
+              icon: Icon(
+                Icons.lock_reset,
+                size: 18,
+                color: palette.inkMuted,
+              ),
+              onPressed: onResetPassword,
+            ),
             const SizedBox(width: VanamSpacing.xs),
             IconButton(
               tooltip: 'Revoke',

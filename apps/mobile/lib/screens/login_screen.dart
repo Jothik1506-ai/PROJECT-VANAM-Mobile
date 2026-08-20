@@ -1,26 +1,29 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../auth/auth_service.dart';
 import '../theme/tokens.dart';
 import '../widgets/feedback_button.dart';
 import '../widgets/vanam_logo.dart';
 import 'app_shell.dart';
+import 'forgot_password_screen.dart';
 import 'qr_scan_screen.dart';
 import 'set_display_name_screen.dart';
+import 'set_password_screen.dart';
 
-/// Login screen — invite code + PIN only.
-/// No password, no Google login, no OTP login, no self-signup: this app has
-/// no open-registration path (see ARCHITECTURE.md, Section 3 / 3a).
+/// Login screen — username + password, admin-issued (see
+/// ARCHITECTURE.md Section 5). Still no open self-signup: only an admin can
+/// create a member account, either from the Admin screen (which shows a
+/// username + default password and a QR code encoding both) or by scanning
+/// that QR here.
 ///
 /// [onSubmit] is injected so PreviewLoginGate can substitute a mock flow for
 /// UI review without touching the real backend. When left unset (the real
 /// V1 app, lib/main.dart), submitting calls the actual
-/// `authService.redeemInvite` — see ARCHITECTURE.md Section 5.
+/// `authService.signInWithUsernamePassword`.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, this.onSubmit});
 
-  final Future<void> Function(String inviteCode, String pin)? onSubmit;
+  final Future<void> Function(String username, String password)? onSubmit;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -28,16 +31,16 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _inviteCodeController = TextEditingController();
-  final _pinController = TextEditingController();
-  bool _obscurePin = true;
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _obscurePassword = true;
   bool _isSubmitting = false;
   String? _errorText;
 
   @override
   void dispose() {
-    _inviteCodeController.dispose();
-    _pinController.dispose();
+    _usernameController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
@@ -47,10 +50,10 @@ class _LoginScreenState extends State<LoginScreen> {
     );
     if (result == null || !mounted) return;
 
-    final (code, pin) = result;
+    final (username, password) = result;
     setState(() {
-      _inviteCodeController.text = code;
-      _pinController.text = pin;
+      _usernameController.text = username;
+      _passwordController.text = password;
     });
     // A scanned code is already exact — no reason to make the person tap
     // Log In too after they just pointed a camera at it.
@@ -66,32 +69,38 @@ class _LoginScreenState extends State<LoginScreen> {
       _errorText = null;
     });
 
-    final code = _inviteCodeController.text.trim().toUpperCase();
-    final pin = _pinController.text.trim();
+    final username = _usernameController.text.trim().toLowerCase();
+    final password = _passwordController.text;
 
     try {
       if (widget.onSubmit != null) {
-        await widget.onSubmit!(code, pin);
+        await widget.onSubmit!(username, password);
       } else {
-        await authService.redeemInvite(code: code, pin: pin);
+        await authService.signInWithUsernamePassword(
+          username: username,
+          password: password,
+        );
         final profile = await authService.fetchMyProfile();
         if (!mounted) return;
         // pushReplacement, not push: Login shouldn't be reachable via back
-        // once redemption succeeds — there's nothing to "go back" to.
+        // once sign-in succeeds — there's nothing to "go back" to.
         final isAdmin = profile?.isAdmin ?? false;
+        final nameConfirmed = profile?.nameConfirmed ?? true;
+        final passwordChanged = profile?.passwordChanged ?? true;
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (_) => profile != null && !profile.nameConfirmed
+            builder: (_) => !passwordChanged
+                ? SetPasswordScreen(
+                    isAdmin: isAdmin,
+                    nameConfirmed: nameConfirmed,
+                  )
+                : !nameConfirmed
                 ? SetDisplayNameScreen(isAdmin: isAdmin)
                 : AppShell(isAdmin: isAdmin),
           ),
         );
       }
-    } on InviteRedemptionException catch (e) {
-      // The Postgres function's error text is already written for a human
-      // — see supabase/schema.sql redeem_invite() — so show it directly
-      // rather than a generic message that would hide *why* it failed
-      // (wrong PIN vs expired vs already used vs locked).
+    } on LoginException catch (e) {
       setState(() => _errorText = e.message);
     } catch (e) {
       setState(
@@ -137,53 +146,46 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: VanamSpacing.xl),
                     TextFormField(
-                      controller: _inviteCodeController,
-                      textCapitalization: TextCapitalization.characters,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(
-                          RegExp(r'[A-Za-z0-9-]'),
-                        ),
-                      ],
+                      controller: _usernameController,
+                      textCapitalization: TextCapitalization.none,
+                      autocorrect: false,
                       decoration: const InputDecoration(
-                        hintText: 'Invite code',
-                        prefixIcon: Icon(Icons.confirmation_number_outlined),
+                        hintText: 'Username',
+                        prefixIcon: Icon(Icons.person_outline),
                       ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
-                          return 'Enter the invite code your admin shared';
+                          return 'Enter the username your admin gave you';
                         }
                         return null;
                       },
                     ),
                     const SizedBox(height: VanamSpacing.md),
                     TextFormField(
-                      controller: _pinController,
-                      obscureText: _obscurePin,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(6),
-                      ],
+                      controller: _passwordController,
+                      obscureText: _obscurePassword,
                       decoration: InputDecoration(
-                        hintText: 'PIN',
+                        hintText: 'Password',
                         prefixIcon: const Icon(Icons.lock_outline),
                         suffixIcon: IconButton(
                           icon: Icon(
-                            _obscurePin
+                            _obscurePassword
                                 ? Icons.visibility_outlined
                                 : Icons.visibility_off_outlined,
                             color: palette.inkMuted,
                           ),
-                          onPressed: () =>
-                              setState(() => _obscurePin = !_obscurePin),
+                          onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
                         ),
                       ),
                       validator: (value) {
-                        if (value == null || value.trim().length < 4) {
-                          return 'Enter the PIN your admin gave you';
+                        if (value == null || value.isEmpty) {
+                          return 'Enter your password';
                         }
                         return null;
                       },
+                      onFieldSubmitted: (_) => _handleSubmit(),
                     ),
                     if (_errorText != null) ...[
                       const SizedBox(height: VanamSpacing.sm),
@@ -214,12 +216,23 @@ class _LoginScreenState extends State<LoginScreen> {
                       icon: const Icon(Icons.qr_code_scanner),
                       label: const Text('Scan QR instead'),
                     ),
+                    const SizedBox(height: VanamSpacing.sm),
+                    TextButton(
+                      onPressed: _isSubmitting
+                          ? null
+                          : () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const ForgotPasswordScreen(),
+                              ),
+                            ),
+                      child: const Text('Forgot password?'),
+                    ),
                     const SizedBox(height: VanamSpacing.lg),
                     Text.rich(
                       TextSpan(
                         style: Theme.of(context).textTheme.bodyMedium,
                         children: [
-                          const TextSpan(text: 'Need an invite? '),
+                          const TextSpan(text: 'Need an account? '),
                           TextSpan(
                             text: 'Contact your family admin.',
                             style: TextStyle(

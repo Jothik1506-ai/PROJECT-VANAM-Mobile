@@ -1,63 +1,93 @@
-import 'dart:math';
-
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'invite.dart';
 
 final inviteService = InviteService(Supabase.instance.client);
 
-/// Admin-only invite management, backed by the create_invite/invite_codes
-/// RLS in supabase/schema.sql. Every method here will simply fail (RPC
-/// exception or empty result) if the caller isn't an admin — enforced at
-/// the database, not just by not showing this screen to non-admins.
+/// Admin-only member management, backed by the admin_create_member /
+/// admin_issue_credentials / admin_reset_member_password RPCs (see
+/// supabase/migrations/20260820020000_username_password_auth.sql). Every
+/// method here will simply fail (RPC exception) if the caller isn't an
+/// admin — enforced at the database, not just by not showing this screen
+/// to non-admins.
 class InviteService {
   InviteService(this._client);
 
   final SupabaseClient _client;
 
-  /// Creates an invite with a freshly system-generated PIN (ARCHITECTURE.md
-  /// Section 7: "System generates invite code + one-time PIN" — not an
-  /// admin-chosen one, which would tend toward predictable PINs).
-  ///
-  /// Returns the plaintext PIN alongside the created [Invite] — this is the
-  /// only place it's ever available. The database only ever stores its
-  /// bcrypt hash from this point on.
-  Future<(Invite, String pin)> createInvite({
-    required String inviteeName,
-    int ttlDays = 7,
-  }) async {
-    final pin = _generatePin();
+  /// Creates a brand-new member: a real username/password account plus
+  /// their profiles row. Returns the one-time credentials + recovery code
+  /// to show/QR-encode — after this call the plaintext password and
+  /// recovery code are never available again (the recovery code's hash is
+  /// stored; the password isn't stored at all, only its bcrypt hash).
+  Future<(Invite, String username, String password, String recoveryCode)>
+  createInvite({required String inviteeName}) async {
     final row = await _client.rpc(
-      'create_invite',
-      params: {
-        'invitee_name': inviteeName,
-        'invite_pin': pin,
-        'ttl_days': ttlDays,
-      },
+      'admin_create_member',
+      params: {'p_display_name': inviteeName},
     );
-    return (Invite.fromJson(row as Map<String, dynamic>), pin);
+    final r = (row as List).first as Map<String, dynamic>;
+    final username = r['username'] as String;
+    final password = r['temp_password'] as String;
+    final recoveryCode = r['recovery_code'] as String;
+    return (
+      Invite(
+        id: '',
+        inviteeName: inviteeName,
+        username: username,
+        status: MemberStatus.pending,
+      ),
+      username,
+      password,
+      recoveryCode,
+    );
   }
 
   Future<List<Invite>> listInvites() async {
     final rows = await _client
-        .from('invite_codes')
+        .from('profiles')
         .select()
         .order('created_at', ascending: false);
     return (rows as List)
-        .map((r) => Invite.fromJson(r as Map<String, dynamic>))
+        .map((r) => Invite.fromProfileJson(r as Map<String, dynamic>))
         .toList();
   }
 
-  /// Revokes an invite that hasn't been used yet. Uses the
-  /// profiles_admin/invite_codes_admin_all RLS path — a direct table
-  /// update, not an RPC, since no extra validation logic is needed beyond
-  /// "is this caller an admin," which RLS already enforces.
-  Future<void> revokeInvite(String id) async {
-    await _client.from('invite_codes').update({'revoked': true}).eq('id', id);
+  /// For a member who was created under the old invite/PIN flow, or has
+  /// otherwise never had a username — attaches password login to their
+  /// existing account (same id, so message history stays attached).
+  Future<(String username, String password, String recoveryCode)>
+  issueCredentials(String memberId) async {
+    final row = await _client.rpc(
+      'admin_issue_credentials',
+      params: {'p_member_id': memberId},
+    );
+    final r = (row as List).first as Map<String, dynamic>;
+    return (
+      r['username'] as String,
+      r['temp_password'] as String,
+      r['recovery_code'] as String,
+    );
   }
 
-  static String _generatePin() {
-    final rng = Random.secure();
-    return (100000 + rng.nextInt(900000)).toString();
+  /// Resets a member back to the default password (for someone who forgot
+  /// theirs and doesn't have the original QR anymore) and mints a fresh
+  /// recovery code.
+  Future<(String password, String recoveryCode)> resetPassword(
+    String memberId,
+  ) async {
+    final row = await _client.rpc(
+      'admin_reset_member_password',
+      params: {'p_member_id': memberId},
+    );
+    final r = (row as List).first as Map<String, dynamic>;
+    return (r['temp_password'] as String, r['recovery_code'] as String);
+  }
+
+  Future<void> revokeInvite(String memberId) async {
+    await _client
+        .from('profiles')
+        .update({'status': 'revoked'})
+        .eq('id', memberId);
   }
 }

@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../auth/auth_service.dart';
 import '../profile/profile_controller.dart';
 import '../profile/user_profile.dart';
 import '../theme/theme_controller.dart';
 import '../theme/tokens.dart';
 import '../widgets/vanam_logo.dart';
+import 'change_password_screen.dart';
+import 'auth_gate.dart';
 
 /// Profile screen.
 ///
@@ -29,6 +32,8 @@ class ProfileScreen extends StatelessWidget {
             _PrivacySummary(),
             SizedBox(height: VanamSpacing.md),
             _ProfileMenuList(),
+            SizedBox(height: VanamSpacing.md),
+            _SignOutButton(),
             SizedBox(height: VanamSpacing.xl),
             _AppVersionLabel(),
             SizedBox(height: VanamSpacing.xl),
@@ -329,7 +334,8 @@ class _PrivacySummary extends StatelessWidget {
             const SizedBox(width: VanamSpacing.sm),
             Expanded(
               child: Text(
-                'Messages are planned as end-to-end encrypted in V1.',
+                'Messages are end-to-end encrypted — Vanam never sees '
+                'their content.',
                 style: TextStyle(color: palette.brandStrong, fontSize: 13),
               ),
             ),
@@ -343,23 +349,36 @@ class _PrivacySummary extends StatelessWidget {
 class _ProfileMenuList extends StatelessWidget {
   const _ProfileMenuList();
 
-  static const _items = [
-    (icon: Icons.person_outline, label: 'Account Details'),
-    (icon: Icons.translate_outlined, label: 'Language'),
-    (icon: Icons.notifications_none_rounded, label: 'Notifications'),
-    (icon: Icons.lock_outline, label: 'Privacy & Security'),
-    (icon: Icons.help_outline, label: 'Help & Support'),
-  ];
-
   @override
   Widget build(BuildContext context) {
     final palette = context.vanam;
+    final List<({IconData icon, String label, VoidCallback? onTap})> items = [
+      (icon: Icons.person_outline, label: 'Account Details', onTap: null),
+      (icon: Icons.translate_outlined, label: 'Language', onTap: null),
+      (
+        icon: Icons.notifications_none_rounded,
+        label: 'Notifications',
+        onTap: null,
+      ),
+      (
+        icon: Icons.lock_outline,
+        label: 'Change Password',
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
+        ),
+      ),
+      (icon: Icons.help_outline, label: 'Help & Support', onTap: null),
+    ];
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: VanamSpacing.md),
       child: Column(
         children: [
-          for (final item in _items) ...[
-            _ProfileMenuTile(icon: item.icon, label: item.label),
+          for (final item in items) ...[
+            _ProfileMenuTile(
+              icon: item.icon,
+              label: item.label,
+              onTap: item.onTap,
+            ),
             Divider(height: 1, color: palette.line),
           ],
         ],
@@ -368,17 +387,75 @@ class _ProfileMenuList extends StatelessWidget {
   }
 }
 
+class _SignOutButton extends StatelessWidget {
+  const _SignOutButton();
+
+  Future<void> _signOut(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign out?'),
+        content: const Text("You'll need your username and password to log back in."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    await authService.signOut();
+    if (!context.mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AuthGate()),
+      (route) => false,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.vanam;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: VanamSpacing.md),
+      child: OutlinedButton.icon(
+        onPressed: () => _signOut(context),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: palette.danger,
+          side: BorderSide(color: palette.danger),
+          minimumSize: const Size.fromHeight(48),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(VanamRadii.button),
+          ),
+        ),
+        icon: const Icon(Icons.logout),
+        label: const Text('Sign Out'),
+      ),
+    );
+  }
+}
+
 class _ProfileMenuTile extends StatelessWidget {
-  const _ProfileMenuTile({required this.icon, required this.label});
+  const _ProfileMenuTile({
+    required this.icon,
+    required this.label,
+    this.onTap,
+  });
 
   final IconData icon;
   final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.vanam;
     return InkWell(
-      onTap: () {},
+      onTap: onTap ?? () {},
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: VanamSpacing.md),
         child: Row(

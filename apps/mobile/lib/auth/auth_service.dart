@@ -8,16 +8,17 @@ import 'family_profile.dart';
 /// Supabase.initialize().
 final authService = AuthService(Supabase.instance.client);
 
-/// Wraps the anonymous-sign-in + invite-redemption auth flow.
+/// Username/password auth (see ARCHITECTURE.md Section 5 and
+/// supabase/migrations/20260820020000_username_password_auth.sql).
 ///
-/// See ARCHITECTURE.md Section 5 "Auth model" for why this exists: Supabase
-/// Auth assumes email/phone/OAuth, and VANAM's locked model is invite code
-/// + PIN with no open signup. The mapping is:
-///   1. Sign in anonymously — gets a real auth.uid(), no email/phone attached.
-///   2. Call redeem_invite(code, pin) — the only way that session becomes a
-///      real family member (see supabase/schema.sql).
-/// A session that never redeems an invite can read or write nothing; RLS
-/// enforces this at the database, not just in app UI.
+/// Supabase Auth wants an email, so a member's `vanam_<name>` username is
+/// mapped to a synthetic `<username>@vanam.local` address the member never
+/// sees or types — they only ever deal with the username. An admin creates
+/// the account (`admin_create_member`/`admin_issue_credentials`) and hands
+/// over the username + a default password; the member changes it on first
+/// login. Unlike the old anonymous-session model, this credential works
+/// from any device, indefinitely — it isn't lost if the app's local data
+/// is cleared.
 class AuthService {
   AuthService(this._client);
 
@@ -25,34 +26,43 @@ class AuthService {
 
   bool get isSignedIn => _client.auth.currentUser != null;
 
-  /// Ensures there is *some* Supabase session, signing in anonymously if
-  /// needed. Does not by itself grant any access — see class doc.
-  Future<void> ensureSignedIn() async {
-    if (_client.auth.currentSession != null) return;
-    await _client.auth.signInAnonymously();
-  }
+  static String _emailFor(String username) => '$username@vanam.local';
 
-  /// Redeems an invite code + PIN for the current session, linking it to a
-  /// real profiles row. Throws [InviteRedemptionException] with a message
-  /// safe to show directly on the Login screen — the Postgres function's
-  /// error text is already written for a human (see schema.sql).
-  Future<void> redeemInvite({
-    required String code,
-    required String pin,
+  /// Logs in with a member's username + password. Throws [LoginException]
+  /// with a message safe to show directly on the Login screen.
+  Future<void> signInWithUsernamePassword({
+    required String username,
+    required String password,
   }) async {
-    await ensureSignedIn();
     try {
-      await _client.rpc(
-        'redeem_invite',
-        params: {'invite_code': code, 'invite_pin': pin},
+      await _client.auth.signInWithPassword(
+        email: _emailFor(username.trim().toLowerCase()),
+        password: password,
       );
-    } on PostgrestException catch (e) {
-      throw InviteRedemptionException(e.message);
+    } on AuthException catch (e) {
+      throw LoginException(
+        e.message.toLowerCase().contains('invalid')
+            ? 'Wrong username or password.'
+            : e.message,
+      );
     }
   }
 
-  /// The caller's own profiles row, or null if this session hasn't
-  /// redeemed an invite yet (RLS would return nothing for it anyway).
+  /// Sets a new password for the currently signed-in member, then clears
+  /// the "must change password" flag that forced this screen.
+  Future<void> changeOwnPassword(String newPassword) async {
+    try {
+      await _client.auth.updateUser(UserAttributes(password: newPassword));
+      await _client.rpc('mark_own_password_changed');
+    } on AuthException catch (e) {
+      throw LoginException(e.message);
+    }
+  }
+
+  /// The caller's own profiles row, or null if this session has no
+  /// linked profile (shouldn't normally happen once signed in with a
+  /// real username/password — every account created via admin_create_member
+  /// gets one atomically).
   Future<FamilyProfile?> fetchMyProfile() async {
     final uid = _client.auth.currentUser?.id;
     if (uid == null) return null;
@@ -82,10 +92,33 @@ class AuthService {
   }
 
   Future<void> signOut() => _client.auth.signOut();
+
+  /// Self-service password reset via a one-time recovery code (shown once
+  /// alongside the username/password when an admin creates/issues/resets
+  /// credentials — see admin_invites_screen.dart). No session required;
+  /// callable straight from the Login screen.
+  Future<void> resetPasswordWithRecoveryCode({
+    required String username,
+    required String recoveryCode,
+    required String newPassword,
+  }) async {
+    try {
+      await _client.rpc(
+        'reset_password_with_recovery_code',
+        params: {
+          'p_username': username.trim().toLowerCase(),
+          'p_recovery_code': recoveryCode.trim(),
+          'p_new_password': newPassword,
+        },
+      );
+    } on PostgrestException catch (e) {
+      throw LoginException(e.message);
+    }
+  }
 }
 
-class InviteRedemptionException implements Exception {
-  const InviteRedemptionException(this.message);
+class LoginException implements Exception {
+  const LoginException(this.message);
   final String message;
   @override
   String toString() => message;

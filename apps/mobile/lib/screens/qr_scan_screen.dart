@@ -4,11 +4,11 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../invites/invite_qr_codec.dart';
 import '../theme/tokens.dart';
 
-/// Scans the QR code shown on the admin's invite-created sheet (see
+/// Scans the QR code shown on the admin's member-created sheet (see
 /// admin_invites_screen.dart) and pops back to Login with the
-/// (code, pin) pair it decodes. Only ever pops on a payload that actually
-/// parses as ours — a random unrelated QR code is silently ignored rather
-/// than sent back as garbage invite code/PIN.
+/// (username, password) pair it decodes. Only ever pops on a payload that
+/// actually parses as ours — a random unrelated QR code is silently
+/// ignored rather than sent back as garbage credentials.
 class QrScanScreen extends StatefulWidget {
   const QrScanScreen({super.key});
 
@@ -47,7 +47,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: const Text('Scan invite QR code'),
+        title: const Text('Scan login QR code'),
         actions: [
           IconButton(
             tooltip: 'Toggle flash',
@@ -75,7 +75,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
             right: 0,
             bottom: VanamSpacing.xl,
             child: Text(
-              'Point the camera at the invite QR code',
+              'Point the camera at the login QR code',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
             ),
