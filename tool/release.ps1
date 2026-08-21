@@ -118,7 +118,7 @@ $manifest = [ordered]@{
     sizeBytes               = $sizeBytes
     releaseNotes            = "Home post sharing to Vanam chats, Work Manager mobile activity reporting, and fresh signed release build."
     releaseNotesTe          = "Vanam chats lo home post share, Work Manager mobile activity reporting, mariyu fresh signed release build."
-    publishedAt             = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'")
+    publishedAt             = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd'T'HH':'mm':'ss'Z'")
 }
 
 $manifestPath = Join-Path $OutputDir "manifest.json"

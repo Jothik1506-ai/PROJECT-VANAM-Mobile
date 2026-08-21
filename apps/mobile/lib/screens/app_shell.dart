@@ -122,45 +122,51 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         },
         children: screens,
       ),
-      floatingActionButton: _GlobalActions(
-        isAdmin: widget.isAdmin,
-        screen: _screenLabels[_index],
-      ),
       bottomNavigationBar: VanamBottomNav(
         currentIndex: _index,
         onTap: _goToTab,
+        onMenuTap: _showGlobalActionsMenu,
       ),
     );
   }
-}
 
-class _GlobalActions extends StatelessWidget {
-  const _GlobalActions({required this.isAdmin, required this.screen});
-
-  final bool isAdmin;
-  final String screen;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!isAdmin) return FeedbackButton(screen: screen);
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        FloatingActionButton.extended(
-          heroTag: 'global-invite',
-          onPressed: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const AdminInvitesScreen()),
-            );
-          },
-          icon: const Icon(Icons.person_add_alt_1_outlined),
-          label: const Text('Invite'),
+  Future<void> _showGlobalActionsMenu() async {
+    final action = await showModalBottomSheet<_GlobalAction>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.isAdmin)
+              ListTile(
+                leading: const Icon(Icons.person_add_alt_1_outlined),
+                title: const Text('Invite'),
+                subtitle: const Text('Create or manage family access'),
+                onTap: () => Navigator.of(context).pop(_GlobalAction.invite),
+              ),
+            ListTile(
+              leading: const Icon(Icons.feedback_outlined),
+              title: const Text('Feedback'),
+              subtitle: Text('Send feedback from ${_screenLabels[_index]}'),
+              onTap: () => Navigator.of(context).pop(_GlobalAction.feedback),
+            ),
+          ],
         ),
-        const SizedBox(height: 12),
-        FeedbackButton(screen: screen),
-      ],
+      ),
     );
+
+    if (!mounted || action == null) return;
+
+    switch (action) {
+      case _GlobalAction.invite:
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const AdminInvitesScreen()));
+      case _GlobalAction.feedback:
+        await showFeedbackDialog(context, screen: _screenLabels[_index]);
+    }
   }
 }
+
+enum _GlobalAction { invite, feedback }

@@ -13,10 +13,12 @@ class VanamBottomNav extends StatelessWidget {
     super.key,
     required this.currentIndex,
     required this.onTap,
+    this.onMenuTap,
   });
 
   final int currentIndex;
   final ValueChanged<int> onTap;
+  final VoidCallback? onMenuTap;
 
   static const _items = [
     (icon: Icons.play_circle_outline, label: 'Reels'),
@@ -39,7 +41,18 @@ class VanamBottomNav extends StatelessWidget {
           height: 64,
           child: Row(
             children: [
-              for (var i = 0; i < _items.length; i++)
+              for (var i = 0; i < _items.length; i++) ...[
+                if (i == _items.length - 1 && onMenuTap != null)
+                  Expanded(
+                    child: InkWell(
+                      onTap: onMenuTap,
+                      child: const _NavItem(
+                        icon: Icons.more_horiz,
+                        label: 'More',
+                        selected: false,
+                      ),
+                    ),
+                  ),
                 Expanded(
                   child: InkWell(
                     onTap: () => onTap(i),
@@ -50,6 +63,7 @@ class VanamBottomNav extends StatelessWidget {
                     ),
                   ),
                 ),
+              ],
             ],
           ),
         ),
