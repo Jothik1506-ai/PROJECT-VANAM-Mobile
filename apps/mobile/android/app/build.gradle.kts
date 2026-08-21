@@ -84,6 +84,12 @@ android {
                         "with the stable VANAM release keystore before building a release APK."
                 )
             }
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
             // If key.properties is absent we deliberately fail the release
             // build rather than falling back to the debug key or emitting an
             // unsigned APK.
