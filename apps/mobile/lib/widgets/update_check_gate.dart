@@ -34,10 +34,15 @@ class _UpdateCheckGateState extends State<UpdateCheckGate> {
     if (_checked || !AppConfig.updateChecksEnabled || !mounted) return;
     _checked = true;
 
-    final result = await _service.check();
-    if (!mounted || !result.hasUpdate) return;
+    try {
+      final result = await _service.check();
+      if (!mounted || !result.hasUpdate) return;
 
-    await UpdatePrompt.show(context, result: result, service: _service);
+      await UpdatePrompt.show(context, result: result, service: _service);
+    } catch (_) {
+      // OTA is a convenience path for sideloaded builds. It must never
+      // destabilize normal app startup.
+    }
   }
 
   @override

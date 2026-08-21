@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -131,33 +132,41 @@ class PushNotificationService {
   }
 
   Future<void> ensureTokenRegistered() async {
-    if (!_firebaseReady) return;
-    final memberId = _client.auth.currentUser?.id;
-    if (memberId == null) return;
+    try {
+      if (!_firebaseReady) return;
+      final memberId = _client.auth.currentUser?.id;
+      if (memberId == null) return;
 
-    final token = await _messaging!.getToken();
-    if (token == null || token.isEmpty) return;
-    await _upsertToken(token);
+      final token = await _messaging!.getToken();
+      if (token == null || token.isEmpty) return;
+      await _upsertToken(token);
 
-    _messaging!.onTokenRefresh.listen((newToken) {
-      if (newToken.isEmpty) return;
-      _upsertToken(newToken);
-    });
+      _messaging!.onTokenRefresh.listen((newToken) {
+        if (newToken.isEmpty) return;
+        unawaited(_upsertToken(newToken));
+      });
+    } catch (_) {
+      // Push registration must never crash or restart the family app.
+    }
   }
 
   Future<void> _upsertToken(String token) async {
-    final memberId = _client.auth.currentUser?.id;
-    if (memberId == null) return;
+    try {
+      final memberId = _client.auth.currentUser?.id;
+      if (memberId == null) return;
 
-    final info = await PackageInfo.fromPlatform();
-    await _client.rpc(
-      'register_push_token',
-      params: {
-        'p_fcm_token': token,
-        'p_platform': Platform.isAndroid ? 'android' : 'other',
-        'p_app_version': '${info.version}+${info.buildNumber}',
-      },
-    );
-    await workManagerActivity.reportPushTokenRegistered();
+      final info = await PackageInfo.fromPlatform();
+      await _client.rpc(
+        'register_push_token',
+        params: {
+          'p_fcm_token': token,
+          'p_platform': Platform.isAndroid ? 'android' : 'other',
+          'p_app_version': '${info.version}+${info.buildNumber}',
+        },
+      );
+      await workManagerActivity.reportPushTokenRegistered();
+    } catch (_) {
+      // Retry on the next app start/token refresh.
+    }
   }
 }

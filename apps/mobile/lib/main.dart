@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -12,15 +14,27 @@ import 'theme/tokens.dart';
 import 'widgets/update_check_gate.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await pushNotificationService.initialize();
-  await Supabase.initialize(
-    url: AppConfig.supabaseUrl,
-    publishableKey: AppConfig.supabaseAnonKey,
+  await runZonedGuarded(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+      FlutterError.onError = (details) {
+        FlutterError.presentError(details);
+      };
+
+      await pushNotificationService.initialize();
+      await Supabase.initialize(
+        url: AppConfig.supabaseUrl,
+        publishableKey: AppConfig.supabaseAnonKey,
+      );
+      await profileController.load();
+      await familyGroupChat.load();
+      runApp(const VanamApp());
+    },
+    (error, stack) {
+      // Keep release builds from restart-looping on non-critical background
+      // failures. Screen-level code still surfaces user-facing errors.
+    },
   );
-  await profileController.load();
-  await familyGroupChat.load();
-  runApp(const VanamApp());
 }
 
 class VanamApp extends StatelessWidget {

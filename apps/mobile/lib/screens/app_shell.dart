@@ -44,9 +44,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     // set) rather than in AuthGate, so it fires on every path that
     // reaches here — straight in, or via SetPasswordScreen/
     // SetDisplayNameScreen first.
-    keySyncService.refreshAccessibleScopes();
-    workManagerActivity.reportActive(profile: widget.profile, force: true);
-    pushNotificationService.ensureTokenRegistered();
+    unawaited(keySyncService.refreshAccessibleScopes());
+    unawaited(
+      workManagerActivity.reportActive(profile: widget.profile, force: true),
+    );
+    unawaited(pushNotificationService.ensureTokenRegistered());
     _accessCheckTimer = Timer.periodic(
       const Duration(seconds: 30),
       (_) => _enforceAccountAccess(),
@@ -60,7 +62,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     // anyone to notice and manually restart anything.
     _keyResyncTimer = Timer.periodic(
       const Duration(seconds: 45),
-      (_) => keySyncService.refreshAccessibleScopes(),
+      (_) => unawaited(keySyncService.refreshAccessibleScopes()),
     );
   }
 
@@ -77,7 +79,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _enforceAccountAccess();
-      keySyncService.refreshAccessibleScopes();
+      unawaited(keySyncService.refreshAccessibleScopes());
     }
   }
 

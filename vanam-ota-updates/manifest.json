@@ -1,11 +1,11 @@
 ﻿{
-    "latestVersionCode":  18,
+    "latestVersionCode":  20,
     "latestVersionName":  "1.0.0",
     "minSupportedVersionCode":  0,
-    "apkUrl":  "https://github.com/Jothik1506-ai/PROJECT-VANAM-Mobile/releases/download/v1.0.0-18/vanam-1.0.0-18.apk",
-    "sha256":  "4fa90392622602d0728e0667be8c3f2ea5b9f7e570100f393e812cfda2335d53",
-    "sizeBytes":  72829338,
-    "releaseNotes":  "Fixes stuck chat encryption sync by rotating a chat key when no usable key is available, so family and direct messages can send again. Already-stuck old encrypted messages may remain unreadable.",
-    "releaseNotesTe":  "Chat encryption sync stuck ayina appudu new key rotate chesi family and direct messages malli send avvadam fix chesam. Already stuck old encrypted messages readable kakapovachu.",
-    "publishedAt":  "2026-08-21T07:56:05Z"
+    "apkUrl":  "https://github.com/Jothik1506-ai/PROJECT-VANAM-Mobile/releases/download/v1.0.0-20/vanam-1.0.0-20.apk",
+    "sha256":  "9e1c14c6b8846a043600b5740325e46d7f985eecbbb8f238dc2b943c4b6753cf",
+    "sizeBytes":  72715473,
+    "releaseNotes":  "Stability fix for occasional app restarts. Background update, push, key sync, and activity-report tasks are now guarded so temporary failures do not restart the app.",
+    "releaseNotesTe":  "App occasional restart issue ki stability fix. Background update, push, key sync, activity-report tasks fail ayina app restart kakunda guard chesam.",
+    "publishedAt":  "2026-08-21T16:25:36Z"
 }
