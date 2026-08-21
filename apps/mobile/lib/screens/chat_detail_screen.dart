@@ -349,9 +349,14 @@ class _MessageBubble extends StatelessWidget {
   }
 
   static String _timeLabel(DateTime time) {
-    final hour = time.hour % 12 == 0 ? 12 : time.hour % 12;
-    final minute = time.minute.toString().padLeft(2, '0');
-    final period = time.hour >= 12 ? 'PM' : 'AM';
+    // sentAt is parsed from Postgres's timestamptz (UTC) — must convert to
+    // local before reading hour/minute, or every message shows the sender's
+    // UTC send time instead of the reader's own clock time (e.g. IST readers
+    // saw messages sent at 12:14 PM local labeled 6:45 AM).
+    final local = time.toLocal();
+    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final minute = local.minute.toString().padLeft(2, '0');
+    final period = local.hour >= 12 ? 'PM' : 'AM';
     return '$hour:$minute $period';
   }
 }

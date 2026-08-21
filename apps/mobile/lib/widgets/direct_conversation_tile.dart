@@ -71,9 +71,14 @@ class DirectConversationTile extends StatelessWidget {
   }
 
   static String _timeLabel(DateTime time) {
-    final hour = time.hour % 12 == 0 ? 12 : time.hour % 12;
-    final minute = time.minute.toString().padLeft(2, '0');
-    final period = time.hour >= 12 ? 'PM' : 'AM';
+    // See chat_detail_screen.dart's _timeLabel — sentAt/lastMessageAt come
+    // back from Postgres as UTC and must be converted before reading
+    // hour/minute, or the preview shows the sender's UTC time instead of
+    // the reader's local time.
+    final local = time.toLocal();
+    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final minute = local.minute.toString().padLeft(2, '0');
+    final period = local.hour >= 12 ? 'PM' : 'AM';
     return '$hour:$minute $period';
   }
 }
