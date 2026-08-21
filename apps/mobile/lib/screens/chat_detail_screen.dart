@@ -192,7 +192,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         SnackBar(
           content: Text(
             encryptionSyncing
-                ? 'Encryption is syncing. Ask the other family member to open this chat, then try again.'
+                ? "Encryption is syncing — this finishes on its own within "
+                      'a minute or so of them opening Vanam (any screen, '
+                      "not just this chat). Try again shortly."
                 : 'Could not send. Check connection and try again.',
           ),
         ),

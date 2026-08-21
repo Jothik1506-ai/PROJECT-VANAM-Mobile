@@ -1,11 +1,11 @@
 ﻿{
-    "latestVersionCode":  16,
+    "latestVersionCode":  17,
     "latestVersionName":  "1.0.0",
     "minSupportedVersionCode":  0,
-    "apkUrl":  "https://github.com/Jothik1506-ai/PROJECT-VANAM-Mobile/releases/download/v1.0.0-16/vanam-1.0.0-16.apk",
-    "sha256":  "69beb3348a782ae41e8c5d1cd3d9d43f2e04e4f4e03e76699d791a1e239853b5",
+    "apkUrl":  "https://github.com/Jothik1506-ai/PROJECT-VANAM-Mobile/releases/download/v1.0.0-17/vanam-1.0.0-17.apk",
+    "sha256":  "f630038593a00b7821c0a74eb5370fcf494bae6fa16516d984a10edeeeda8b2e",
     "sizeBytes":  72829338,
-    "releaseNotes":  "Fixes Home likes and comments by enabling the missing backend interactions. Includes latest chat read-status improvements.",
-    "releaseNotesTe":  "Home likes mariyu comments backend fix chesam. Latest chat read-status improvements kuda include chesam.",
-    "publishedAt":  "2026-08-21T07:12:56Z"
+    "releaseNotes":  "Improves chat encryption sync by refreshing keys while the app is open and after resume. Adds clearer guidance when encryption is still syncing.",
+    "releaseNotesTe":  "App open lo undaga mariyu resume ayyaka chat encryption keys refresh avutayi. Encryption syncing message kuda clear ga update chesam.",
+    "publishedAt":  "2026-08-21T07:34:28Z"
 }

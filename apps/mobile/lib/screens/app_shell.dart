@@ -30,6 +30,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int _index = 2;
   late final _pageController = PageController(initialPage: _index);
   Timer? _accessCheckTimer;
+  Timer? _keyResyncTimer;
   bool _checkingAccess = false;
 
   static const _screenLabels = ['Reels', 'Messages', 'Home', 'Profile'];
@@ -50,19 +51,34 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       const Duration(seconds: 30),
       (_) => _enforceAccountAccess(),
     );
+    // Resealing a chat's key for a member who's missing it only happens on
+    // an already-keyed participant's device — and previously only ran once,
+    // at app launch. If that participant's public key showed up *after* the
+    // other side last opened the app, the sender stayed stuck on
+    // "Encryption is syncing" until someone thought to relaunch. Retrying
+    // every 45s while the app is open closes that gap without needing
+    // anyone to notice and manually restart anything.
+    _keyResyncTimer = Timer.periodic(
+      const Duration(seconds: 45),
+      (_) => keySyncService.refreshAccessibleScopes(),
+    );
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _accessCheckTimer?.cancel();
+    _keyResyncTimer?.cancel();
     _pageController.dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _enforceAccountAccess();
+    if (state == AppLifecycleState.resumed) {
+      _enforceAccountAccess();
+      keySyncService.refreshAccessibleScopes();
+    }
   }
 
   Future<void> _enforceAccountAccess() async {
