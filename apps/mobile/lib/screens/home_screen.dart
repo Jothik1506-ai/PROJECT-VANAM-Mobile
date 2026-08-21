@@ -446,9 +446,9 @@ class _InAppShareSheetState extends State<_InAppShareSheet> {
       await send();
       if (!mounted) return;
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Post shared in Vanam.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Post shared in Vanam.')));
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -540,7 +540,9 @@ class _InAppShareSheetState extends State<_InAppShareSheet> {
                         _sharingTarget == conversation.conversationId;
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: MemberAvatar(name: conversation.otherDisplayName),
+                      leading: MemberAvatar(
+                        name: conversation.otherDisplayName,
+                      ),
                       title: Text(conversation.otherDisplayName),
                       subtitle: const Text('Direct chat'),
                       trailing: isSharing
@@ -804,7 +806,11 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
   }
 
   Future<void> _pickPhotos() async {
-    final picked = await _picker.pickMultiImage(imageQuality: 85);
+    final picked = await _picker.pickMultiImage(
+      imageQuality: 72,
+      maxWidth: 1600,
+      maxHeight: 1600,
+    );
     if (!mounted || picked.isEmpty) return;
     setState(() {
       _photos = picked

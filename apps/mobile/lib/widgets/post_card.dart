@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../models/post.dart';
@@ -195,18 +196,19 @@ class _PostMediaCarouselState extends State<_PostMediaCarousel> {
           itemCount: widget.urls.length,
           onPageChanged: (index) => setState(() => _index = index),
           itemBuilder: (context, index) {
-            return Image.network(
-              widget.urls[index],
+            return CachedNetworkImage(
+              imageUrl: widget.urls[index],
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return const _MemoryPreview(label: 'Photo unavailable');
-              },
-              frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                return GestureDetector(
-                  onTap: () => _openViewer(context, index),
-                  child: child,
-                );
-              },
+              memCacheWidth: 900,
+              fadeInDuration: const Duration(milliseconds: 120),
+              placeholder: (context, url) =>
+                  const _MemoryPreview(label: 'Loading photo...'),
+              errorWidget: (context, url, error) =>
+                  const _MemoryPreview(label: 'Photo unavailable'),
+              imageBuilder: (context, provider) => GestureDetector(
+                onTap: () => _openViewer(context, index),
+                child: Image(image: provider, fit: BoxFit.cover),
+              ),
             );
           },
         ),
@@ -313,7 +315,21 @@ class _FullScreenMediaViewerState extends State<_FullScreenMediaViewer> {
             minScale: 1,
             maxScale: 4,
             child: Center(
-              child: Image.network(widget.urls[index], fit: BoxFit.contain),
+              child: CachedNetworkImage(
+                imageUrl: widget.urls[index],
+                fit: BoxFit.contain,
+                memCacheWidth: 1440,
+                placeholder: (context, url) => const Center(
+                  child: CircularProgressIndicator(color: Colors.white54),
+                ),
+                errorWidget: (context, url, error) => const Center(
+                  child: Icon(
+                    Icons.broken_image_outlined,
+                    color: Colors.white54,
+                    size: 48,
+                  ),
+                ),
+              ),
             ),
           );
         },

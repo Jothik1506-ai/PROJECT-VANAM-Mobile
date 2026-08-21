@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -22,7 +23,8 @@ class ReelsScreen extends StatefulWidget {
 
 class _ReelsScreenState extends State<ReelsScreen> {
   late final HomeFeedRepository _repository =
-      widget._repository ?? SupabaseHomeFeedRepository(Supabase.instance.client);
+      widget._repository ??
+      SupabaseHomeFeedRepository(Supabase.instance.client);
   late Future<List<ReelItem>> _reels = _load();
 
   Future<List<ReelItem>> _load() async {
@@ -112,9 +114,9 @@ class _ReelPageState extends State<_ReelPage> {
       await widget.onChanged();
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not update like.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not update like.')));
     } finally {
       if (mounted) setState(() => _liking = false);
     }
@@ -127,10 +129,12 @@ class _ReelPageState extends State<_ReelPage> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        Image.network(
-          widget.reel.mediaUrl,
+        CachedNetworkImage(
+          imageUrl: widget.reel.mediaUrl,
           fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => const ColoredBox(
+          memCacheWidth: 1200,
+          fadeInDuration: const Duration(milliseconds: 120),
+          errorWidget: (context, url, error) => const ColoredBox(
             color: Color(0xFF1A1A1A),
             child: Center(
               child: Icon(
@@ -140,15 +144,12 @@ class _ReelPageState extends State<_ReelPage> {
               ),
             ),
           ),
-          loadingBuilder: (context, child, progress) {
-            if (progress == null) return child;
-            return const ColoredBox(
-              color: Colors.black,
-              child: Center(
-                child: CircularProgressIndicator(color: Colors.white54),
-              ),
-            );
-          },
+          placeholder: (context, url) => const ColoredBox(
+            color: Colors.black,
+            child: Center(
+              child: CircularProgressIndicator(color: Colors.white54),
+            ),
+          ),
         ),
         // Bottom gradient so white overlay text stays readable over any photo.
         const DecoratedBox(
@@ -225,7 +226,9 @@ class _ReelPageState extends State<_ReelPage> {
               IconButton(
                 onPressed: _liking ? null : _toggleLike,
                 icon: Icon(
-                  post.likedByMe ? Icons.favorite_rounded : Icons.favorite_border,
+                  post.likedByMe
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border,
                   color: post.likedByMe ? Colors.redAccent : Colors.white,
                   size: 30,
                 ),
