@@ -52,6 +52,17 @@ class SupabaseDirectChatSync {
     return messages;
   }
 
+  /// Marks every message from the other participant in this conversation
+  /// as read — call whenever the recipient actually has the conversation
+  /// open. Idempotent (only touches rows still unread), safe to call
+  /// repeatedly (e.g. on every realtime refresh while the screen is open).
+  Future<void> markRead(String conversationId) async {
+    await _client.rpc(
+      'mark_direct_messages_read',
+      params: {'p_conversation_id': conversationId},
+    );
+  }
+
   Future<ChatMessage> sendMessage({
     required String conversationId,
     required String text,
@@ -80,10 +91,25 @@ class SupabaseDirectChatSync {
     required String conversationId,
     required Future<void> Function() onChanged,
   }) {
+    // Listens for UPDATE too, not just INSERT — a message's read_at flips
+    // from null to a timestamp via UPDATE, and the sender's device needs
+    // that event to turn its sent-tick into a read-tick live, the same way
+    // a new message needs the INSERT event to appear live.
     return _client
         .channel('direct_messages:$conversationId')
         .onPostgresChanges(
           event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'direct_messages',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'conversation_id',
+            value: conversationId,
+          ),
+          callback: (_) => onChanged(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
           schema: 'public',
           table: 'direct_messages',
           filter: PostgresChangeFilter(
@@ -122,6 +148,7 @@ class SupabaseDirectChatSync {
       sentAt:
           DateTime.tryParse(json['sent_at'] as String? ?? '') ?? DateTime.now(),
       isMine: senderId.isNotEmpty && senderId == currentUserId,
+      readAt: DateTime.tryParse(json['read_at'] as String? ?? ''),
     );
   }
 }

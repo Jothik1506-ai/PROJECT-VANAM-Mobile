@@ -1,11 +1,11 @@
 ﻿{
-    "latestVersionCode":  14,
+    "latestVersionCode":  16,
     "latestVersionName":  "1.0.0",
     "minSupportedVersionCode":  0,
-    "apkUrl":  "https://github.com/Jothik1506-ai/PROJECT-VANAM-Mobile/releases/download/v1.0.0-14/vanam-1.0.0-14.apk",
-    "sha256":  "9ea556cf3d037a057ab39a63f5ca8d0c226e0da2fd930c476a0ae9c6a4a0cafd",
-    "sizeBytes":  72763714,
-    "releaseNotes":  "Moves Invite and Feedback into the bottom navigation More menu. Admins can open Invites from More, and every member can send page-aware feedback from More.",
-    "releaseNotesTe":  "Invite mariyu Feedback options bottom navigation More menu ki move chesam. Admins More nundi Invites open cheyyachu, andaru members page-aware feedback pampachu.",
-    "publishedAt":  "2026-08-21T01:48:12Z"
+    "apkUrl":  "https://github.com/Jothik1506-ai/PROJECT-VANAM-Mobile/releases/download/v1.0.0-16/vanam-1.0.0-16.apk",
+    "sha256":  "69beb3348a782ae41e8c5d1cd3d9d43f2e04e4f4e03e76699d791a1e239853b5",
+    "sizeBytes":  72829338,
+    "releaseNotes":  "Fixes Home likes and comments by enabling the missing backend interactions. Includes latest chat read-status improvements.",
+    "releaseNotesTe":  "Home likes mariyu comments backend fix chesam. Latest chat read-status improvements kuda include chesam.",
+    "publishedAt":  "2026-08-21T07:12:56Z"
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -5,6 +7,7 @@ import '../chat/chat_controller.dart';
 import '../chat/chat_message.dart';
 import '../chat/supabase_chat_sync.dart';
 import '../chat/supabase_direct_chat_sync.dart';
+import '../notifications/active_chat_tracker.dart';
 import '../profile/profile_controller.dart';
 import '../theme/tokens.dart';
 import 'admin_invites_screen.dart';
@@ -68,14 +71,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   RealtimeChannel? _messagesChannel;
   String? _syncStatus;
 
+  /// The scope key this screen registers with activeChatTracker so a
+  /// foreground push for this exact chat gets suppressed (see
+  /// push_notification_service.dart) — same key shape the Edge Function's
+  /// notification data uses.
+  late final String _activeScope = widget.mode == ChatDetailMode.familyGroup
+      ? ActiveChatTracker.familyGroupScope
+      : ActiveChatTracker.directScope(widget.conversationId!);
+
   @override
   void initState() {
     super.initState();
+    activeChatTracker.setActive(_activeScope);
     _attachSupabaseSync();
   }
 
   @override
   void dispose() {
+    activeChatTracker.clearIfActive(_activeScope);
     final channel = _messagesChannel;
     if (channel != null) {
       if (_familySync != null) {
@@ -118,12 +131,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       _messages.value = await sync.fetchMessages(
         conversationId: conversationId,
       );
+      // Mark anything already sitting unread as read now that this screen
+      // is open, then again after every realtime refresh — cheap/idempotent
+      // (see SupabaseDirectChatSync.markRead), and is what turns the
+      // sender's tick blue on their device.
+      unawaited(sync.markRead(conversationId));
       final channel = sync.subscribeToMessages(
         conversationId: conversationId,
         onChanged: () async {
           _messages.value = await sync.fetchMessages(
             conversationId: conversationId,
           );
+          unawaited(sync.markRead(conversationId));
         },
       );
       if (!mounted) return;
@@ -259,7 +278,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     return RepaintBoundary(
                       child: message.kind == ChatMessageKind.system
                           ? _SystemEventNotice(message: message)
-                          : _MessageBubble(message: message),
+                          : _MessageBubble(
+                              message: message,
+                              showReadReceipt:
+                                  widget.mode == ChatDetailMode.direct,
+                            ),
                     );
                   },
                 );
@@ -280,9 +303,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 }
 
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.message});
+  const _MessageBubble({required this.message, required this.showReadReceipt});
 
   final ChatMessage message;
+
+  /// Only true in direct-message mode — the family group has no per-message
+  /// N-way read receipt, so a tick there would misleadingly imply tracking
+  /// that doesn't exist.
+  final bool showReadReceipt;
 
   @override
   Widget build(BuildContext context) {
@@ -338,9 +366,24 @@ class _MessageBubble extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.only(top: 2),
-            child: Text(
-              _timeLabel(message.sentAt),
-              style: TextStyle(fontSize: 10, color: palette.inkMuted),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _timeLabel(message.sentAt),
+                  style: TextStyle(fontSize: 10, color: palette.inkMuted),
+                ),
+                if (showReadReceipt && message.isMine) ...[
+                  const SizedBox(width: 3),
+                  Icon(
+                    message.readAt != null ? Icons.done_all : Icons.done,
+                    size: 13,
+                    color: message.readAt != null
+                        ? palette.brand
+                        : palette.inkMuted,
+                  ),
+                ],
+              ],
             ),
           ),
         ],

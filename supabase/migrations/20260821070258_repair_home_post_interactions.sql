@@ -1,4 +1,5 @@
--- Home feed interactions: likes and comments, scoped to active family members.
+-- Repair Home feed interactions on projects that already had the initial
+-- list_home_posts(integer) RPC without likes/comments fields.
 
 create table if not exists public.home_post_likes (
   post_id uuid not null references public.home_posts (id) on delete cascade,
@@ -23,28 +24,38 @@ alter table public.home_post_comments enable row level security;
 
 drop policy if exists home_post_likes_select on public.home_post_likes;
 create policy home_post_likes_select on public.home_post_likes
-  for select using (public.is_active_member());
+  for select
+  to authenticated
+  using (public.is_active_member());
 
 drop policy if exists home_post_likes_insert on public.home_post_likes;
 create policy home_post_likes_insert on public.home_post_likes
-  for insert with check (
-    public.is_active_member() and member_id = auth.uid()
+  for insert
+  to authenticated
+  with check (
+    public.is_active_member() and member_id = (select auth.uid())
   );
 
 drop policy if exists home_post_likes_delete on public.home_post_likes;
 create policy home_post_likes_delete on public.home_post_likes
-  for delete using (
-    public.is_active_member() and member_id = auth.uid()
+  for delete
+  to authenticated
+  using (
+    public.is_active_member() and member_id = (select auth.uid())
   );
 
 drop policy if exists home_post_comments_select on public.home_post_comments;
 create policy home_post_comments_select on public.home_post_comments
-  for select using (public.is_active_member());
+  for select
+  to authenticated
+  using (public.is_active_member());
 
 drop policy if exists home_post_comments_insert on public.home_post_comments;
 create policy home_post_comments_insert on public.home_post_comments
-  for insert with check (
-    public.is_active_member() and author_id = auth.uid()
+  for insert
+  to authenticated
+  with check (
+    public.is_active_member() and author_id = (select auth.uid())
   );
 
 drop function if exists public.toggle_home_post_like(uuid);
@@ -65,13 +76,13 @@ begin
 
   if exists (
     select 1 from public.home_post_likes
-    where post_id = p_post_id and member_id = auth.uid()
+    where post_id = p_post_id and member_id = (select auth.uid())
   ) then
     delete from public.home_post_likes
-    where post_id = p_post_id and member_id = auth.uid();
+    where post_id = p_post_id and member_id = (select auth.uid());
   else
     insert into public.home_post_likes (post_id, member_id)
-    values (p_post_id, auth.uid());
+    values (p_post_id, (select auth.uid()));
   end if;
 end;
 $$;
@@ -95,7 +106,7 @@ begin
   end if;
 
   insert into public.home_post_comments (post_id, author_id, body)
-  values (p_post_id, auth.uid(), trim(p_body));
+  values (p_post_id, (select auth.uid()), trim(p_body));
 end;
 $$;
 
@@ -164,7 +175,7 @@ as $$
     ) as media_paths,
     exists (
       select 1 from public.home_post_likes mine
-      where mine.post_id = p.id and mine.member_id = auth.uid()
+      where mine.post_id = p.id and mine.member_id = (select auth.uid())
     ) as liked_by_me
   from public.home_posts p
   join public.profiles profile on profile.id = p.author_id
@@ -174,6 +185,15 @@ as $$
   order by p.created_at desc
   limit greatest(1, least(p_limit, 100));
 $$;
+
+revoke all on function public.toggle_home_post_like(uuid) from public;
+revoke all on function public.add_home_post_comment(uuid, text) from public;
+revoke all on function public.list_home_post_comments(uuid) from public;
+revoke all on function public.list_home_posts(integer) from public;
+revoke all on function public.toggle_home_post_like(uuid) from anon;
+revoke all on function public.add_home_post_comment(uuid, text) from anon;
+revoke all on function public.list_home_post_comments(uuid) from anon;
+revoke all on function public.list_home_posts(integer) from anon;
 
 grant execute on function public.toggle_home_post_like(uuid) to authenticated;
 grant execute on function public.add_home_post_comment(uuid, text) to authenticated;

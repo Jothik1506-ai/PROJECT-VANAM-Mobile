@@ -9,6 +9,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../work_manager/work_manager_activity.dart';
+import 'active_chat_tracker.dart';
 import 'push_navigation.dart';
 
 final pushNotificationService = PushNotificationService();
@@ -96,6 +97,21 @@ class PushNotificationService {
   Future<void> _showForegroundNotification(RemoteMessage message) async {
     final notification = message.notification;
     if (notification == null) return;
+
+    // Suppress the banner if this exact chat is already open — the message
+    // is already appearing live via Realtime, so a system notification on
+    // top of it is just noise (and, sent per-recipient-per-device, was
+    // showing up even for the person actively reading the chat). Matches
+    // the scope keys ChatDetailScreen registers in active_chat_tracker.dart.
+    final chatType = message.data['chat_type']?.toString();
+    final scope = chatType == 'family'
+        ? ActiveChatTracker.familyGroupScope
+        : chatType == 'direct'
+        ? ActiveChatTracker.directScope(
+            message.data['conversation_id']?.toString() ?? '',
+          )
+        : null;
+    if (scope != null && activeChatTracker.isActive(scope)) return;
 
     await _localNotifications.show(
       id: message.hashCode,

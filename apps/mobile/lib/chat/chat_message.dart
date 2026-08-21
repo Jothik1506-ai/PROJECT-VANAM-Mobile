@@ -7,6 +7,7 @@ class ChatMessage {
     required this.sentAt,
     this.isMine = false,
     this.kind = ChatMessageKind.user,
+    this.readAt,
   });
 
   final String id;
@@ -14,6 +15,12 @@ class ChatMessage {
   final String senderName;
   final String text;
   final DateTime sentAt;
+
+  /// When the recipient read this message — direct messages only (see
+  /// supabase/migrations/20260820070000_direct_message_read_receipts.sql).
+  /// Null means "not read yet" (family group messages never set this;
+  /// there's no per-message N-way read receipt in this app).
+  final DateTime? readAt;
 
   /// Whether this device's user sent it. Synced messages derive this from
   /// Supabase auth.uid(); local test messages can still override it.
@@ -33,6 +40,7 @@ class ChatMessage {
       'sentAt': sentAt.toIso8601String(),
       'isMine': isMine,
       'kind': kind.name,
+      'readAt': readAt?.toIso8601String(),
     };
   }
 
@@ -49,6 +57,7 @@ class ChatMessage {
         (k) => k.name == json['kind'],
         orElse: () => ChatMessageKind.user,
       ),
+      readAt: DateTime.tryParse(json['readAt'] as String? ?? ''),
     );
   }
 }
