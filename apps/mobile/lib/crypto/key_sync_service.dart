@@ -162,6 +162,45 @@ class KeySyncService {
     }
   }
 
+  /// Rotates a stuck scope to a fresh key and seals it for current members.
+  ///
+  /// This is intentionally used only as a send-time recovery path. If no
+  /// active device can decrypt the existing scope key anymore, waiting and
+  /// resealing can never succeed. Rotating lets new messages work again;
+  /// older ciphertext from the lost key may remain unreadable.
+  Future<Uint8List> rotateScopeKey({
+    required String scope,
+    required String scopeId,
+  }) async {
+    await ensurePublicKeyUploaded();
+
+    await _client.rpc(
+      'reset_key_wraps_for_scope',
+      params: {'p_scope': scope, 'p_scope_id': scopeId},
+    );
+
+    final newKey = _e2ee.generateSymmetricKey();
+    final myPublicKey = await _e2ee.myPublicKeyBase64();
+    final sealedForSelf = await _e2ee.sealKeyFor(
+      symmetricKey: newKey,
+      recipientPublicKeyBase64: myPublicKey,
+    );
+    final uid = _client.auth.currentUser!.id;
+    await _client.rpc(
+      'upload_key_wrap',
+      params: {
+        'p_scope': scope,
+        'p_scope_id': scopeId,
+        'p_member_id': uid,
+        'p_sealed_key': sealedForSelf,
+      },
+    );
+
+    _cache[_cacheKey(scope, scopeId)] = newKey;
+    await resealForMissingMembers(scope: scope, scopeId: scopeId, key: newKey);
+    return newKey;
+  }
+
   /// Refreshes every chat this member can access. A keyed device calling
   /// this on app start automatically reseals missing wraps for a family
   /// member who reinstalled, without requiring each chat to be opened.

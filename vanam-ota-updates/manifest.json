@@ -1,11 +1,11 @@
 ﻿{
-    "latestVersionCode":  17,
+    "latestVersionCode":  18,
     "latestVersionName":  "1.0.0",
     "minSupportedVersionCode":  0,
-    "apkUrl":  "https://github.com/Jothik1506-ai/PROJECT-VANAM-Mobile/releases/download/v1.0.0-17/vanam-1.0.0-17.apk",
-    "sha256":  "f630038593a00b7821c0a74eb5370fcf494bae6fa16516d984a10edeeeda8b2e",
+    "apkUrl":  "https://github.com/Jothik1506-ai/PROJECT-VANAM-Mobile/releases/download/v1.0.0-18/vanam-1.0.0-18.apk",
+    "sha256":  "4fa90392622602d0728e0667be8c3f2ea5b9f7e570100f393e812cfda2335d53",
     "sizeBytes":  72829338,
-    "releaseNotes":  "Improves chat encryption sync by refreshing keys while the app is open and after resume. Adds clearer guidance when encryption is still syncing.",
-    "releaseNotesTe":  "App open lo undaga mariyu resume ayyaka chat encryption keys refresh avutayi. Encryption syncing message kuda clear ga update chesam.",
-    "publishedAt":  "2026-08-21T07:34:28Z"
+    "releaseNotes":  "Fixes stuck chat encryption sync by rotating a chat key when no usable key is available, so family and direct messages can send again. Already-stuck old encrypted messages may remain unreadable.",
+    "releaseNotesTe":  "Chat encryption sync stuck ayina appudu new key rotate chesi family and direct messages malli send avvadam fix chesam. Already stuck old encrypted messages readable kakapovachu.",
+    "publishedAt":  "2026-08-21T07:56:05Z"
 }

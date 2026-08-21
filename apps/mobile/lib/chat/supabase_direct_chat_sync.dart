@@ -67,10 +67,12 @@ class SupabaseDirectChatSync {
     required String conversationId,
     required String text,
   }) async {
-    final key = await _conversationKey(conversationId);
-    if (key == null) {
-      throw StateError('Encryption key not ready yet — try again in a moment');
-    }
+    final key =
+        await _conversationKey(conversationId) ??
+        await keySyncService.rotateScopeKey(
+          scope: 'direct',
+          scopeId: conversationId,
+        );
     final ciphertext = await _e2ee.encryptMessage(
       plaintext: text,
       symmetricKey: key,

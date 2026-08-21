@@ -42,12 +42,9 @@ class SupabaseChatSync {
     required String text,
     String groupId = 'family-group',
   }) async {
-    final key = await _groupKey();
-    if (key == null) {
-      throw StateError(
-        'Encryption key not ready yet — try again in a moment',
-      );
-    }
+    final key =
+        await _groupKey() ??
+        await keySyncService.rotateScopeKey(scope: 'group', scopeId: groupId);
     final ciphertext = await _e2ee.encryptMessage(
       plaintext: text,
       symmetricKey: key,
