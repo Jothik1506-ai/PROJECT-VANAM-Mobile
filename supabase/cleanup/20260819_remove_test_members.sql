@@ -44,6 +44,82 @@ target_users as (
   from public.profiles p
   join test_names t on lower(trim(p.display_name)) = lower(trim(t.display_name))
 )
+delete from public.messages m
+using target_users t
+where m.sender_id = t.id;
+
+with test_names(display_name) as (
+  values
+    ('Jyotik'),
+    ('jyotek'),
+    ('jyotek 9'),
+    ('ajo tech testing'),
+    ('jk'),
+    ('jktest'),
+    ('fix check')
+),
+target_users as (
+  select p.id
+  from public.profiles p
+  join test_names t on lower(trim(p.display_name)) = lower(trim(t.display_name))
+)
+delete from public.direct_messages dm
+using target_users t
+where dm.sender_id = t.id;
+
+with test_names(display_name) as (
+  values
+    ('Jyotik'),
+    ('jyotek'),
+    ('jyotek 9'),
+    ('ajo tech testing'),
+    ('jk'),
+    ('jktest'),
+    ('fix check')
+),
+target_users as (
+  select p.id
+  from public.profiles p
+  join test_names t on lower(trim(p.display_name)) = lower(trim(t.display_name))
+)
+update public.invite_codes i
+set created_by = null
+where i.created_by in (select id from target_users);
+
+with test_names(display_name) as (
+  values
+    ('Jyotik'),
+    ('jyotek'),
+    ('jyotek 9'),
+    ('ajo tech testing'),
+    ('jk'),
+    ('jktest'),
+    ('fix check')
+),
+target_users as (
+  select p.id
+  from public.profiles p
+  join test_names t on lower(trim(p.display_name)) = lower(trim(t.display_name))
+)
+update public.invite_codes i
+set redeemed_by = null
+where i.redeemed_by in (select id from target_users);
+
+with test_names(display_name) as (
+  values
+    ('Jyotik'),
+    ('jyotek'),
+    ('jyotek 9'),
+    ('ajo tech testing'),
+    ('jk'),
+    ('jktest'),
+    ('fix check')
+),
+target_users as (
+  select p.id
+  from public.profiles p
+  join test_names t on lower(trim(p.display_name)) = lower(trim(t.display_name))
+)
 delete from auth.users u
 using target_users t
 where u.id = t.id;
