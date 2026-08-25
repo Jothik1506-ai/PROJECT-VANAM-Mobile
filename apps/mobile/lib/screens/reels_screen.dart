@@ -1,8 +1,8 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../home/home_feed_repository.dart';
+import '../media/vanam_cached_image.dart';
 import '../models/reel_item.dart';
 import '../theme/tokens.dart';
 import '../widgets/member_avatar.dart';
@@ -129,12 +129,12 @@ class _ReelPageState extends State<_ReelPage> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        CachedNetworkImage(
+        VanamCachedImage(
           imageUrl: widget.reel.mediaUrl,
           fit: BoxFit.cover,
-          memCacheWidth: 1200,
-          fadeInDuration: const Duration(milliseconds: 120),
-          errorWidget: (context, url, error) => const ColoredBox(
+          width: 900,
+          quality: 62,
+          errorWidget: (context) => const ColoredBox(
             color: Color(0xFF1A1A1A),
             child: Center(
               child: Icon(
@@ -144,10 +144,20 @@ class _ReelPageState extends State<_ReelPage> {
               ),
             ),
           ),
-          placeholder: (context, url) => const ColoredBox(
-            color: Colors.black,
+          placeholder: (context) => const ColoredBox(
+            color: Color(0xFF101A10),
             child: Center(
-              child: CircularProgressIndicator(color: Colors.white54),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: Colors.white54),
+                  SizedBox(height: 12),
+                  Text(
+                    'Loading photo...',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

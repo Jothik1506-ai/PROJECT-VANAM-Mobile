@@ -11,7 +11,10 @@ with test_names(display_name) as (
     ('Jyotik'),
     ('jyotek'),
     ('jyotek 9'),
-    ('ajo tech testing')
+    ('ajo tech testing'),
+    ('jk'),
+    ('jktest'),
+    ('fix check')
 )
 select
   p.id,
@@ -31,7 +34,10 @@ with test_names(display_name) as (
     ('Jyotik'),
     ('jyotek'),
     ('jyotek 9'),
-    ('ajo tech testing')
+    ('ajo tech testing'),
+    ('jk'),
+    ('jktest'),
+    ('fix check')
 ),
 target_users as (
   select p.id

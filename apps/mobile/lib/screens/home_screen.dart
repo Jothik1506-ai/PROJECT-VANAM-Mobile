@@ -807,9 +807,9 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
 
   Future<void> _pickPhotos() async {
     final picked = await _picker.pickMultiImage(
-      imageQuality: 72,
-      maxWidth: 1600,
-      maxHeight: 1600,
+      imageQuality: 64,
+      maxWidth: 1280,
+      maxHeight: 1280,
     );
     if (!mounted || picked.isEmpty) return;
     setState(() {

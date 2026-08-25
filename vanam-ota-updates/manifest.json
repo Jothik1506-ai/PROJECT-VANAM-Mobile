@@ -1,11 +1,11 @@
-﻿{
-    "latestVersionCode":  20,
+{
+    "latestVersionCode":  21,
     "latestVersionName":  "1.0.0",
     "minSupportedVersionCode":  0,
-    "apkUrl":  "https://github.com/Jothik1506-ai/PROJECT-VANAM-Mobile/releases/download/v1.0.0-20/vanam-1.0.0-20.apk",
-    "sha256":  "9e1c14c6b8846a043600b5740325e46d7f985eecbbb8f238dc2b943c4b6753cf",
-    "sizeBytes":  72715473,
-    "releaseNotes":  "Stability fix for occasional app restarts. Background update, push, key sync, and activity-report tasks are now guarded so temporary failures do not restart the app.",
-    "releaseNotesTe":  "App occasional restart issue ki stability fix. Background update, push, key sync, activity-report tasks fail ayina app restart kakunda guard chesam.",
-    "publishedAt":  "2026-08-21T16:25:36Z"
+    "apkUrl":  "https://github.com/Jothik1506-ai/PROJECT-VANAM-Mobile/releases/download/v1.0.0-21/vanam-1.0.0-21.apk",
+    "sha256":  "2def651044e85f552770cc583a5a71ea814d08d024d6bc37dfa8ac726bf94a82",
+    "sizeBytes":  73240185,
+    "releaseNotes":  "Fixes image loading stability, reduces photo memory use, keeps Vanam web links in-app, and adds ghost-family placeholder groundwork.",
+    "releaseNotesTe":  "Image loading stability fix, photo memory use thaggimpu, Vanam web links app-lone open avuthayi, ghost family placeholders groundwork add chesam.",
+    "publishedAt":  "2026-08-25T02:35:12Z"
 }

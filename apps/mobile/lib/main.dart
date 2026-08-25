@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/painting.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'chat/chat_controller.dart';
@@ -17,6 +18,8 @@ Future<void> main() async {
   await runZonedGuarded(
     () async {
       WidgetsFlutterBinding.ensureInitialized();
+      PaintingBinding.instance.imageCache.maximumSize = 40;
+      PaintingBinding.instance.imageCache.maximumSizeBytes = 32 << 20;
       FlutterError.onError = (details) {
         FlutterError.presentError(details);
       };

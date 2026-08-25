@@ -111,7 +111,7 @@ class WebUpdateCard extends StatelessWidget {
 
   Future<void> _open(BuildContext context) async {
     final uri = _uri;
-    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    final opened = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
     if (opened || !context.mounted) return;
 
     await Clipboard.setData(ClipboardData(text: uri.toString()));

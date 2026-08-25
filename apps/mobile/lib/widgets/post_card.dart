@@ -1,6 +1,6 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../media/vanam_cached_image.dart';
 import '../models/post.dart';
 import '../theme/tokens.dart';
 import 'member_avatar.dart';
@@ -196,14 +196,14 @@ class _PostMediaCarouselState extends State<_PostMediaCarousel> {
           itemCount: widget.urls.length,
           onPageChanged: (index) => setState(() => _index = index),
           itemBuilder: (context, index) {
-            return CachedNetworkImage(
+            return VanamCachedImage(
               imageUrl: widget.urls[index],
               fit: BoxFit.cover,
-              memCacheWidth: 900,
-              fadeInDuration: const Duration(milliseconds: 120),
-              placeholder: (context, url) =>
+              width: 720,
+              quality: 62,
+              placeholder: (context) =>
                   const _MemoryPreview(label: 'Loading photo...'),
-              errorWidget: (context, url, error) =>
+              errorWidget: (context) =>
                   const _MemoryPreview(label: 'Photo unavailable'),
               imageBuilder: (context, provider) => GestureDetector(
                 onTap: () => _openViewer(context, index),
@@ -315,14 +315,16 @@ class _FullScreenMediaViewerState extends State<_FullScreenMediaViewer> {
             minScale: 1,
             maxScale: 4,
             child: Center(
-              child: CachedNetworkImage(
+              child: VanamCachedImage(
                 imageUrl: widget.urls[index],
                 fit: BoxFit.contain,
-                memCacheWidth: 1440,
-                placeholder: (context, url) => const Center(
+                width: 1200,
+                quality: 72,
+                resize: 'contain',
+                placeholder: (context) => const Center(
                   child: CircularProgressIndicator(color: Colors.white54),
                 ),
-                errorWidget: (context, url, error) => const Center(
+                errorWidget: (context) => const Center(
                   child: Icon(
                     Icons.broken_image_outlined,
                     color: Colors.white54,
