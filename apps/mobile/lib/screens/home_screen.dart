@@ -6,8 +6,9 @@ import '../chat/direct_conversation.dart';
 import '../chat/supabase_chat_sync.dart';
 import '../chat/supabase_direct_chat_sync.dart';
 import '../home/home_feed_repository.dart';
-import '../models/family_member.dart';
+import '../home/story_repository.dart';
 import '../models/post.dart';
+import '../models/story.dart';
 import '../models/web_update.dart';
 import '../notifications/in_app_notification_service.dart';
 import '../theme/tokens.dart';
@@ -17,6 +18,7 @@ import '../widgets/story_avatar.dart';
 import '../widgets/vanam_logo.dart';
 import '../widgets/web_update_card.dart';
 import 'notifications_screen.dart';
+import 'story_viewer_screen.dart';
 
 /// Home feed screen.
 /// Web updates are sourced from the current VANAM web hub list. Family posts
@@ -26,12 +28,15 @@ class HomeScreen extends StatefulWidget {
     super.key,
     HomeFeedRepository? repository,
     NotificationRepository? notificationRepository,
+    StoryRepository? storyRepository,
     this.isAdmin = false,
   }) : _repository = repository,
-       _notificationRepository = notificationRepository;
+       _notificationRepository = notificationRepository,
+       _storyRepository = storyRepository;
 
   final HomeFeedRepository? _repository;
   final NotificationRepository? _notificationRepository;
+  final StoryRepository? _storyRepository;
   final bool isAdmin;
 
   @override
@@ -44,15 +49,61 @@ class _HomeScreenState extends State<HomeScreen> {
       SupabaseHomeFeedRepository(Supabase.instance.client);
   late final NotificationRepository _notificationRepository =
       widget._notificationRepository ?? inAppNotificationService;
+  late final StoryRepository _storyRepository =
+      widget._storyRepository ?? SupabaseStoryRepository(Supabase.instance.client);
   late Future<List<Post>> _posts = _repository.fetchPosts();
   late Future<int> _unreadNotifications = _notificationRepository.unreadCount();
+  late Future<List<StoryGroup>> _storyGroups =
+      _storyRepository.fetchActiveStoryGroups();
+  final _storyPicker = ImagePicker();
+
+  String? get _currentUserId => Supabase.instance.client.auth.currentUser?.id;
 
   Future<void> _refresh() async {
     setState(() {
       _posts = _repository.fetchPosts();
       _unreadNotifications = _notificationRepository.unreadCount();
+      _storyGroups = _storyRepository.fetchActiveStoryGroups();
     });
     await _posts;
+  }
+
+  Future<void> _refreshStories() async {
+    setState(() {
+      _storyGroups = _storyRepository.fetchActiveStoryGroups();
+    });
+  }
+
+  Future<void> _addStory() async {
+    final photo = await _storyPicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
+    if (photo == null || !mounted) return;
+    try {
+      await _storyRepository.postStory(photo);
+      await _refreshStories();
+    } on StoryException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+
+  Future<void> _openStory(List<StoryGroup> groups, int groupIndex) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => StoryViewerScreen(
+          groups: groups,
+          initialGroupIndex: groupIndex,
+          repository: _storyRepository,
+          currentUserId: _currentUserId,
+          onDeleted: _refreshStories,
+        ),
+      ),
+    );
+    if (mounted) await _refreshStories();
   }
 
   Future<void> _openNotifications() async {
@@ -175,15 +226,30 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           SizedBox(
                             height: 88,
-                            child: ListView(
-                              scrollDirection: Axis.horizontal,
-                              children: [
-                                const AddMemberAvatar(),
-                                for (final member in mockFamilyMembers) ...[
-                                  const SizedBox(width: VanamSpacing.md),
-                                  StoryAvatar(name: member.name),
-                                ],
-                              ],
+                            child: FutureBuilder<List<StoryGroup>>(
+                              future: _storyGroups,
+                              builder: (context, snapshot) {
+                                final groups = snapshot.data ?? const [];
+                                return ListView(
+                                  scrollDirection: Axis.horizontal,
+                                  children: [
+                                    AddMemberAvatar(onTap: _addStory),
+                                    for (
+                                      var i = 0;
+                                      i < groups.length;
+                                      i++
+                                    ) ...[
+                                      const SizedBox(width: VanamSpacing.md),
+                                      StoryAvatar(
+                                        name: groups[i].authorName,
+                                        hasStory: true,
+                                        hasUnseen: groups[i].hasUnseen,
+                                        onTap: () => _openStory(groups, i),
+                                      ),
+                                    ],
+                                  ],
+                                );
+                              },
                             ),
                           ),
                           const SizedBox(height: VanamSpacing.lg),

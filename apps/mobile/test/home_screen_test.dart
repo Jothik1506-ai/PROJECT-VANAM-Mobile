@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:vanam_mobile/home/home_feed_repository.dart';
+import 'package:vanam_mobile/home/story_repository.dart';
 import 'package:vanam_mobile/models/post.dart';
+import 'package:vanam_mobile/models/story.dart';
 import 'package:vanam_mobile/notifications/in_app_notification.dart';
 import 'package:vanam_mobile/notifications/in_app_notification_service.dart';
 import 'package:vanam_mobile/screens/home_screen.dart';
@@ -18,6 +20,7 @@ void main() {
         const HomeScreen(
           repository: _FakeHomeFeedRepository(),
           notificationRepository: _FakeNotificationRepository(),
+          storyRepository: _FakeStoryRepository(),
         ),
       ),
     );
@@ -66,4 +69,20 @@ class _FakeHomeFeedRepository implements HomeFeedRepository {
 
   @override
   Future<void> addComment({required Post post, required String body}) async {}
+}
+
+class _FakeStoryRepository implements StoryRepository {
+  const _FakeStoryRepository();
+
+  @override
+  Future<List<StoryGroup>> fetchActiveStoryGroups() async => const [];
+
+  @override
+  Future<void> postStory(XFile photo) async {}
+
+  @override
+  Future<void> markViewed(String storyId) async {}
+
+  @override
+  Future<void> deleteOwnStory(String storyId) async {}
 }

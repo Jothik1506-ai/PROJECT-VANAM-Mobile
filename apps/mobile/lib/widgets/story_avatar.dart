@@ -3,46 +3,87 @@ import 'package:flutter/material.dart';
 import '../theme/tokens.dart';
 import 'member_avatar.dart';
 
-/// One avatar bubble in the family row at the top of Home.
-/// Preview-only widget — Home Feed is Phase 3 (ARCHITECTURE.md Section 9).
+/// One avatar bubble in the family story row at the top of Home.
+/// [hasStory] draws the WhatsApp-style ring — colored (brand gradient) if
+/// [hasUnseen], grey once every one of that person's active stories has
+/// been viewed. No ring at all when they have no active story.
 class StoryAvatar extends StatelessWidget {
-  const StoryAvatar({super.key, required this.name});
+  const StoryAvatar({
+    super.key,
+    required this.name,
+    this.hasStory = false,
+    this.hasUnseen = false,
+    this.onTap,
+  });
 
   final String name;
+  final bool hasStory;
+  final bool hasUnseen;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.vanam;
-    return Column(
-      children: [
-        MemberAvatar(name: name, size: 56),
-        const SizedBox(height: VanamSpacing.xs),
-        Text(name, style: TextStyle(fontSize: 12, color: palette.ink)),
-      ],
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 62,
+            height: 62,
+            alignment: Alignment.center,
+            decoration: hasStory
+                ? BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: hasUnseen
+                        ? const LinearGradient(
+                            colors: [
+                              Color(0xFFE07A3F), // brand-adjacent warm accent
+                              Color(0xFF9F2F24), // kumkum, matches the app's accent palette
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
+                    color: hasUnseen ? null : palette.line,
+                  )
+                : null,
+            child: MemberAvatar(name: name, size: 56),
+          ),
+          const SizedBox(height: VanamSpacing.xs),
+          Text(name, style: TextStyle(fontSize: 12, color: palette.ink)),
+        ],
+      ),
     );
   }
 }
 
-/// The leading "Add" bubble — dashed circle with a plus icon.
+/// The leading "Add" bubble — dashed circle with a plus icon. Tapping it
+/// opens the photo picker to post a new 24h story (see HomeScreen).
 class AddMemberAvatar extends StatelessWidget {
-  const AddMemberAvatar({super.key});
+  const AddMemberAvatar({super.key, this.onTap});
+
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.vanam;
-    return Column(
-      children: [
-        SizedBox(
-          width: 56,
-          height: 56,
-          child: _DashedCircle(
-            color: palette.line,
-            child: Icon(Icons.add, color: palette.brand),
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          SizedBox(
+            width: 56,
+            height: 56,
+            child: _DashedCircle(
+              color: palette.line,
+              child: Icon(Icons.add, color: palette.brand),
+            ),
           ),
-        ),
-        const SizedBox(height: VanamSpacing.xs),
-        Text('Add', style: TextStyle(fontSize: 12, color: palette.inkMuted)),
-      ],
+          const SizedBox(height: VanamSpacing.xs),
+          Text('Add', style: TextStyle(fontSize: 12, color: palette.inkMuted)),
+        ],
+      ),
     );
   }
 }
