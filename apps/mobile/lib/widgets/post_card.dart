@@ -196,10 +196,16 @@ class _PostMediaCarouselState extends State<_PostMediaCarousel> {
           itemCount: widget.urls.length,
           onPageChanged: (index) => setState(() => _index = index),
           itemBuilder: (context, index) {
+            // Was a fixed 720 regardless of the device's actual screen
+            // width/pixel density — sized to whatever it happened to be
+            // tuned on, over-fetching on smaller/lower-DPI phones.
             return VanamCachedImage(
               imageUrl: widget.urls[index],
               fit: BoxFit.cover,
-              width: 720,
+              width: screenAwareImageWidth(
+                context,
+                MediaQuery.sizeOf(context).width,
+              ),
               quality: 62,
               placeholder: (context) =>
                   const _MemoryPreview(label: 'Loading photo...'),

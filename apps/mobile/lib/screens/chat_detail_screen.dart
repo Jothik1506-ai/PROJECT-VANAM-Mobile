@@ -71,6 +71,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   RealtimeChannel? _messagesChannel;
   String? _syncStatus;
 
+  // Direct mode's _messages is disposed in dispose() (unlike family-group
+  // mode, which reuses the long-lived shared controller) — a realtime
+  // onChanged callback that's already mid-fetch when the screen closes
+  // must not write into it afterward. mounted alone isn't quite enough
+  // here since dispose() explicitly disposes this notifier itself.
+  bool _disposed = false;
+  // Realtime can fire onChanged again before a previous fetchMessages call
+  // finishes (e.g. several messages arriving in quick succession) — without
+  // this, two overlapping fetches could resolve out of order and let a
+  // stale response overwrite a newer one. Only the response matching the
+  // latest request actually gets applied.
+  int _refreshRequestId = 0;
+
   /// The scope key this screen registers with activeChatTracker so a
   /// foreground push for this exact chat gets suppressed (see
   /// push_notification_service.dart) — same key shape the Edge Function's
@@ -88,6 +101,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   @override
   void dispose() {
+    _disposed = true;
     activeChatTracker.clearIfActive(_activeScope);
     final channel = _messagesChannel;
     if (channel != null) {
@@ -117,7 +131,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           groupId: widget._controller!.groupId,
           onChanged: widget._controller!.refreshFromRemote,
         );
-        if (!mounted) return;
+        // subscribeToMessages already created and subscribed the channel
+        // above — if the screen was closed while we were awaiting
+        // attachSync, this check used to run too late and the channel's
+        // reference (and thus any way to unsubscribe it in dispose()) was
+        // silently discarded, leaking a live Realtime socket subscription
+        // for the rest of the app's life. Unsubscribe it here instead.
+        if (!mounted) {
+          unawaited(sync.unsubscribe(channel));
+          return;
+        }
         setState(() {
           _familySync = sync;
           _messagesChannel = channel;
@@ -128,9 +151,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
       final conversationId = widget.conversationId!;
       final sync = SupabaseDirectChatSync(client);
-      _messages.value = await sync.fetchMessages(
+      final initialRequestId = ++_refreshRequestId;
+      final initialMessages = await sync.fetchMessages(
         conversationId: conversationId,
       );
+      // _messages is disposed in dispose() for direct mode — a screen
+      // closed while this initial fetch was in flight must not write into
+      // it afterward.
+      if (_disposed) return;
+      if (initialRequestId == _refreshRequestId) {
+        _messages.value = initialMessages;
+      }
       // Mark anything already sitting unread as read now that this screen
       // is open, then again after every realtime refresh — cheap/idempotent
       // (see SupabaseDirectChatSync.markRead), and is what turns the
@@ -139,13 +170,26 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       final channel = sync.subscribeToMessages(
         conversationId: conversationId,
         onChanged: () async {
-          _messages.value = await sync.fetchMessages(
+          // Two realtime events arriving close together could otherwise
+          // start overlapping fetches that resolve out of order, letting a
+          // stale response clobber a newer one — only the response
+          // matching the most recently *started* request gets applied.
+          final requestId = ++_refreshRequestId;
+          final messages = await sync.fetchMessages(
             conversationId: conversationId,
           );
+          if (_disposed || requestId != _refreshRequestId) return;
+          _messages.value = messages;
           unawaited(sync.markRead(conversationId));
         },
       );
-      if (!mounted) return;
+      // Same leak risk as the family-group branch above: the channel is
+      // already live by this point, so a closed screen must explicitly
+      // unsubscribe it rather than just dropping the reference.
+      if (!mounted) {
+        unawaited(sync.unsubscribe(channel));
+        return;
+      }
       setState(() {
         _directSync = sync;
         _messagesChannel = channel;

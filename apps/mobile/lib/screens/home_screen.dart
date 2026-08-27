@@ -159,62 +159,90 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             Divider(height: 1, color: palette.line),
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(VanamSpacing.md),
-                children: [
-                  SizedBox(
-                    height: 88,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        const AddMemberAvatar(),
-                        for (final member in mockFamilyMembers) ...[
-                          const SizedBox(width: VanamSpacing.md),
-                          StoryAvatar(name: member.name),
+              // Was a plain ListView with every post's PostCard built
+              // upfront inside one Column — up to 50 posts (each with
+              // multiple photos) were created and started loading images
+              // simultaneously the instant the future resolved, instead
+              // of progressively as the user scrolled to them. A
+              // CustomScrollView + SliverList.builder below builds each
+              // post lazily, matching ListView.builder's behavior.
+              child: CustomScrollView(
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.all(VanamSpacing.md),
+                    sliver: SliverToBoxAdapter(
+                      child: Column(
+                        children: [
+                          SizedBox(
+                            height: 88,
+                            child: ListView(
+                              scrollDirection: Axis.horizontal,
+                              children: [
+                                const AddMemberAvatar(),
+                                for (final member in mockFamilyMembers) ...[
+                                  const SizedBox(width: VanamSpacing.md),
+                                  StoryAvatar(name: member.name),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: VanamSpacing.lg),
+                          const _SectionHeader(
+                            title: 'Web Page Updates',
+                            subtitle:
+                                'Latest VANAM web pages available for reading.',
+                          ),
+                          const SizedBox(height: VanamSpacing.md),
+                          const RotatingWebUpdateCard(updates: webUpdates),
+                          const SizedBox(height: VanamSpacing.md),
+                          _SectionHeader(
+                            title: 'Family Updates',
+                            subtitle:
+                                'Share photos and notes with the family.',
+                            action: IconButton.filled(
+                              onPressed: _showCreatePost,
+                              icon: const Icon(Icons.add),
+                              tooltip: 'Create post',
+                            ),
+                          ),
+                          const SizedBox(height: VanamSpacing.md),
                         ],
-                      ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: VanamSpacing.lg),
-                  const _SectionHeader(
-                    title: 'Web Page Updates',
-                    subtitle: 'Latest VANAM web pages available for reading.',
-                  ),
-                  const SizedBox(height: VanamSpacing.md),
-                  const RotatingWebUpdateCard(updates: webUpdates),
-                  const SizedBox(height: VanamSpacing.md),
-                  _SectionHeader(
-                    title: 'Family Updates',
-                    subtitle: 'Share photos and notes with the family.',
-                    action: IconButton.filled(
-                      onPressed: _showCreatePost,
-                      icon: const Icon(Icons.add),
-                      tooltip: 'Create post',
-                    ),
-                  ),
-                  const SizedBox(height: VanamSpacing.md),
                   FutureBuilder<List<Post>>(
                     future: _posts,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(VanamSpacing.lg),
-                            child: CircularProgressIndicator(),
+                        return const SliverToBoxAdapter(
+                          child: Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(VanamSpacing.lg),
+                              child: CircularProgressIndicator(),
+                            ),
                           ),
                         );
                       }
                       if (snapshot.hasError) {
-                        return _FeedError(onRetry: _refresh);
+                        return SliverToBoxAdapter(
+                          child: _FeedError(onRetry: _refresh),
+                        );
                       }
                       final posts = snapshot.data ?? mockPosts;
                       if (posts.isEmpty) {
-                        return _EmptyFamilyUpdates(onCreate: _showCreatePost);
+                        return SliverToBoxAdapter(
+                          child: _EmptyFamilyUpdates(onCreate: _showCreatePost),
+                        );
                       }
-                      return Column(
-                        children: [
-                          for (final post in posts)
-                            RepaintBoundary(
+                      return SliverPadding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: VanamSpacing.md,
+                        ),
+                        sliver: SliverList.builder(
+                          itemCount: posts.length,
+                          itemBuilder: (context, index) {
+                            final post = posts[index];
+                            return RepaintBoundary(
                               child: PostCard(
                                 post: post,
                                 canDelete: widget.isAdmin || post.isMine,
@@ -223,8 +251,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 onComment: () => _showComments(post),
                                 onShare: () => _showShare(post),
                               ),
-                            ),
-                        ],
+                            );
+                          },
+                        ),
                       );
                     },
                   ),

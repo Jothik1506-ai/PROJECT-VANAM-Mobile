@@ -2,6 +2,23 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
+/// Picks a request width for [VanamCachedImage] that actually matches this
+/// device's screen, instead of a fixed constant that's wrong on every
+/// device except whatever one it happened to be tuned on. [logicalWidth]
+/// is the widget's own width in logical pixels (e.g. full screen width for
+/// a full-bleed image, or a card's measured width) — this multiplies it by
+/// the device's actual pixel ratio and caps the result so very high-DPI
+/// devices don't request an absurdly large transform.
+int screenAwareImageWidth(
+  BuildContext context,
+  double logicalWidth, {
+  int cap = 1080,
+}) {
+  final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+  final physical = (logicalWidth * devicePixelRatio).round();
+  return physical.clamp(1, cap);
+}
+
 class VanamCachedImage extends StatefulWidget {
   const VanamCachedImage({
     super.key,

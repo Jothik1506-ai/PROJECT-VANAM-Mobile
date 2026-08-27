@@ -10,6 +10,12 @@ plugins {
 
 if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
+    // Required for firebase_crashlytics to fully initialize/report on
+    // Android (build-id injection + mapping file upload) — same
+    // conditional pattern as google-services above, since both depend on
+    // this file existing (it doesn't in a plain checkout without Firebase
+    // configured).
+    apply(plugin = "com.google.firebase.crashlytics")
 }
 
 // Release signing config, loaded from android/key.properties (gitignored).

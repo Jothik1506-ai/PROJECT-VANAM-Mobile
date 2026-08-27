@@ -129,10 +129,16 @@ class _ReelPageState extends State<_ReelPage> {
     return Stack(
       fit: StackFit.expand,
       children: [
+        // Was a fixed 900 regardless of the device's actual screen
+        // width/pixel density — this is a full-bleed image, so size it to
+        // the real screen instead.
         VanamCachedImage(
           imageUrl: widget.reel.mediaUrl,
           fit: BoxFit.cover,
-          width: 900,
+          width: screenAwareImageWidth(
+            context,
+            MediaQuery.sizeOf(context).width,
+          ),
           quality: 62,
           errorWidget: (context) => const ColoredBox(
             color: Color(0xFF1A1A1A),

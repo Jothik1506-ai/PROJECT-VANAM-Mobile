@@ -54,44 +54,66 @@ class PushNotificationService {
       return;
     }
 
-    await _localNotifications
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.createNotificationChannel(_messagesChannel);
-    await _localNotifications.initialize(
-      // A status-bar notification icon must be a flat white silhouette —
-      // the full-color launcher icon (ic_launcher) renders as a blank
-      // circle once Android tints it. ic_stat_vanam is generated from the
-      // brand logo for exactly this (see AndroidManifest.xml's comment).
-      settings: const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_stat_vanam'),
-      ),
-      onDidReceiveNotificationResponse: (response) {
-        final payload = response.payload;
-        if (payload == null || payload.isEmpty) return;
-        final data = jsonDecode(payload);
-        if (data is Map<String, dynamic>) {
-          PushNavigation.openFromPayload(data);
-        }
-      },
-    );
+    // Everything below used to run outside any try/catch: a throw from
+    // notification-channel setup, the permission prompt, or
+    // getInitialMessage() (any of which can fail on a broken Play
+    // Services install, a stripped/rooted ROM, etc.) would propagate all
+    // the way out of main()'s guarded body *before* runApp() was ever
+    // called — leaving a permanent blank screen with nothing on it,
+    // since there was no UI yet for any error to be shown in. Push
+    // notifications are a nice-to-have; they must never be able to
+    // prevent the app itself from opening.
+    try {
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.createNotificationChannel(_messagesChannel);
+      await _localNotifications.initialize(
+        // A status-bar notification icon must be a flat white silhouette —
+        // the full-color launcher icon (ic_launcher) renders as a blank
+        // circle once Android tints it. ic_stat_vanam is generated from the
+        // brand logo for exactly this (see AndroidManifest.xml's comment).
+        settings: const InitializationSettings(
+          android: AndroidInitializationSettings('@mipmap/ic_stat_vanam'),
+        ),
+        onDidReceiveNotificationResponse: (response) {
+          final payload = response.payload;
+          if (payload == null || payload.isEmpty) return;
+          final data = jsonDecode(payload);
+          if (data is Map<String, dynamic>) {
+            PushNavigation.openFromPayload(data);
+          }
+        },
+      );
 
-    final messaging = _messaging!;
-    await messaging.setAutoInitEnabled(true);
-    await messaging.requestPermission(alert: true, badge: true, sound: true);
+      final messaging = _messaging!;
+      await messaging.setAutoInitEnabled(true);
+      await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
 
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-    FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      PushNavigation.openFromPayload(message.data);
-    });
-    FirebaseMessaging.onMessage.listen(_showForegroundNotification);
-
-    final initialMessage = await messaging.getInitialMessage();
-    if (initialMessage != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        PushNavigation.openFromPayload(initialMessage.data);
+      FirebaseMessaging.onBackgroundMessage(
+        firebaseMessagingBackgroundHandler,
+      );
+      FirebaseMessaging.onMessageOpenedApp.listen((message) {
+        PushNavigation.openFromPayload(message.data);
       });
+      FirebaseMessaging.onMessage.listen(_showForegroundNotification);
+
+      final initialMessage = await messaging.getInitialMessage();
+      if (initialMessage != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          PushNavigation.openFromPayload(initialMessage.data);
+        });
+      }
+    } catch (_) {
+      // Push notifications simply won't work this session; the rest of
+      // the app must start regardless. ensureTokenRegistered() and
+      // foreground notifications will each independently no-op/fail
+      // silently afterward, same as when Firebase itself isn't ready.
     }
   }
 
@@ -131,6 +153,8 @@ class PushNotificationService {
     );
   }
 
+  bool _tokenRefreshListenerAttached = false;
+
   Future<void> ensureTokenRegistered() async {
     try {
       if (!_firebaseReady) return;
@@ -141,6 +165,13 @@ class PushNotificationService {
       if (token == null || token.isEmpty) return;
       await _upsertToken(token);
 
+      // AppShell calls this on every mount (login, and any time the auth
+      // gate re-routes into a fresh AppShell) — without this guard, each
+      // call added another onTokenRefresh subscription on top of the
+      // previous ones, so a single real token refresh eventually fired
+      // several duplicate upserts/Work Manager reports at once.
+      if (_tokenRefreshListenerAttached) return;
+      _tokenRefreshListenerAttached = true;
       _messaging!.onTokenRefresh.listen((newToken) {
         if (newToken.isEmpty) return;
         unawaited(_upsertToken(newToken));

@@ -57,6 +57,24 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
 
   final SupabaseClient _client;
 
+  // How long a signed media URL stays valid. The bucket used to be public
+  // (bypassing storage RLS entirely — anyone with a URL could open a
+  // family photo without being a member), so URLs are now signed
+  // per-request instead. An hour comfortably covers one feed session
+  // without needing to re-sign mid-scroll, while still expiring rather
+  // than being a permanent link if it ever leaks.
+  static const _signedUrlTtl = Duration(hours: 1);
+
+  // fetchPosts() can return up to 50 posts, each needing its own
+  // sign-URLs request — running all 50 through Future.wait at once fired
+  // ~50 simultaneous Storage requests the instant the feed loaded. This
+  // caps how many posts are signed concurrently so a big feed doesn't
+  // burst the network/CPU at once (this is exactly the kind of startup
+  // burst already fixed for image *building* via Home's lazy SliverList —
+  // this fixes the equivalent burst one layer down, in the network calls
+  // that produce the URLs those images load from).
+  static const _signingConcurrency = 6;
+
   @override
   Future<List<Post>> fetchPosts() async {
     final List<dynamic> rows;
@@ -68,26 +86,48 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
     } on PostgrestException catch (error) {
       throw _friendlyError(error);
     }
-    return rows
-        .whereType<Map<String, dynamic>>()
-        .map((row) {
+
+    final postRows = rows.whereType<Map<String, dynamic>>().toList();
+    final posts = <Post>[];
+    for (var start = 0; start < postRows.length; start += _signingConcurrency) {
+      final batch = postRows.skip(start).take(_signingConcurrency);
+      final batchPosts = await Future.wait(
+        batch.map((row) async {
           final paths = row['media_paths'];
+          final mediaUrls = paths is List
+              ? await _signedUrlsFor(paths.whereType<String>().toList())
+              : const <String>[];
           return Post.fromJson({
             ...row,
             'is_mine': row['author_id'] == _client.auth.currentUser?.id,
             'liked_by_me': row['liked_by_me'] == true,
-            'media_urls': paths is List
-                ? paths
-                      .whereType<String>()
-                      .map(
-                        (path) =>
-                            _client.storage.from(bucket).getPublicUrl(path),
-                      )
-                      .toList(growable: false)
-                : const <String>[],
+            'media_urls': mediaUrls,
           });
-        })
-        .toList(growable: false);
+        }),
+      );
+      posts.addAll(batchPosts);
+    }
+    return posts;
+  }
+
+  /// Signs every path in one batch call rather than one request per photo —
+  /// createSignedUrls still enforces the same storage RLS (is_active_member())
+  /// as the per-file API, just without an extra round trip per photo.
+  Future<List<String>> _signedUrlsFor(List<String> paths) async {
+    if (paths.isEmpty) return const [];
+    try {
+      final results = await _client.storage
+          .from(bucket)
+          .createSignedUrlsResult(paths, _signedUrlTtl.inSeconds);
+      return results
+          .whereType<SignedUrlSuccess>()
+          .map((r) => r.signedUrl)
+          .toList(growable: false);
+    } on StorageException {
+      // A signing failure for one post must not blank out the whole feed —
+      // that post's photos just show the existing error/broken-image state.
+      return const [];
+    }
   }
 
   @override
@@ -116,24 +156,34 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
     final postId = post['id'] as String;
     final userId = _client.auth.currentUser?.id;
     if (userId == null) {
+      // The home_posts row above already exists with no media — clean it
+      // up rather than leaving an orphaned empty post in the feed.
+      await _deletePostRowBestEffort(postId);
       throw const HomeFeedException('Sign in again before posting.');
     }
 
-    for (var index = 0; index < photos.length; index++) {
-      final photo = photos[index];
-      final bytes = await photo.readAsBytes();
-      final path = _pathFor(userId, postId, index, photo.name);
-      await _client.storage
-          .from(bucket)
-          .uploadBinary(
-            path,
-            Uint8List.fromList(bytes),
-            fileOptions: FileOptions(
-              contentType: _contentTypeFor(photo.name),
-              upsert: false,
-            ),
-          );
-      try {
+    // If any photo fails partway through (upload or the row insert), the
+    // home_posts row created above would otherwise be left behind empty or
+    // with only some photos attached. Track what's been uploaded so far so
+    // a failure can be cleaned up instead of leaving a broken post visible
+    // to the whole family.
+    final uploadedPaths = <String>[];
+    try {
+      for (var index = 0; index < photos.length; index++) {
+        final photo = photos[index];
+        final bytes = await photo.readAsBytes();
+        final path = _pathFor(userId, postId, index, photo.name);
+        await _client.storage
+            .from(bucket)
+            .uploadBinary(
+              path,
+              Uint8List.fromList(bytes),
+              fileOptions: FileOptions(
+                contentType: _contentTypeFor(photo.name),
+                upsert: false,
+              ),
+            );
+        uploadedPaths.add(path);
         await _client.from('home_post_media').insert({
           'post_id': postId,
           'storage_bucket': bucket,
@@ -141,10 +191,30 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
           'position': index,
           'media_type': 'photo',
         });
-      } on PostgrestException catch (error) {
-        throw _friendlyError(error);
       }
+    } catch (error) {
+      if (uploadedPaths.isNotEmpty) {
+        try {
+          await _client.storage.from(bucket).remove(uploadedPaths);
+        } catch (_) {
+          // Best-effort — the DB row cleanup below is what actually keeps
+          // the post from appearing broken; a leftover orphaned file just
+          // wastes storage space.
+        }
+      }
+      await _deletePostRowBestEffort(postId);
+      if (error is PostgrestException) throw _friendlyError(error);
+      rethrow;
     }
+  }
+
+  /// Used only to clean up a home_posts row created by createPost when a
+  /// later step in the same call fails — must never let a cleanup failure
+  /// mask the original error being thrown to the caller.
+  Future<void> _deletePostRowBestEffort(String postId) async {
+    try {
+      await _client.rpc<void>('delete_home_post', params: {'p_post_id': postId});
+    } catch (_) {}
   }
 
   @override
@@ -161,20 +231,30 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
           .nonNulls
           .toList(growable: false);
 
-      if (storagePaths.isNotEmpty) {
-        await _client.storage.from(bucket).remove(storagePaths);
-      }
-
+      // Delete the DB row (and, via cascade, its home_post_media rows)
+      // *before* removing the storage files — the reverse order used to
+      // mean a failure here after storage had already been wiped left a
+      // post visibly stuck in the feed pointing at permanently-missing
+      // media. This way, if the row delete succeeds, the post disappears
+      // from the feed immediately regardless of what happens next; if the
+      // storage removal below then fails, the leftover files are just
+      // wasted (harmless) space rather than user-visible breakage.
       await _client.rpc<void>(
         'delete_home_post',
         params: {'p_post_id': post.id},
       );
+
+      if (storagePaths.isNotEmpty) {
+        try {
+          await _client.storage.from(bucket).remove(storagePaths);
+        } on StorageException {
+          // The post is already gone from the feed at this point — an
+          // orphaned file is a cleanup nice-to-have, not something the
+          // user needs to see an error for.
+        }
+      }
     } on PostgrestException catch (error) {
       throw _friendlyError(error);
-    } on StorageException catch (error) {
-      throw HomeFeedException(
-        'Could not delete uploaded photos. Nothing was removed yet. ${error.message}',
-      );
     }
   }
 

@@ -35,6 +35,25 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   static const _screenLabels = ['Reels', 'Messages', 'Home', 'Profile'];
 
+  // Previously all four tabs were built (and started fetching data +
+  // loading images) the instant AppShell mounted, regardless of which one
+  // was actually visible — Home and Reels even independently fetched the
+  // same posts. Building lazily on first visit, and keeping each screen's
+  // widget instance (not rebuilding it) once built, means only the
+  // initially-visible tab (Home, index 2) does any work at startup.
+  final List<Widget?> _builtScreens = List<Widget?>.filled(4, null);
+
+  Widget _screenFor(int index) {
+    return _builtScreens[index] ??= _KeepAlivePage(
+      child: switch (index) {
+        0 => const ReelsScreen(),
+        1 => MessagesScreen(isAdmin: widget.isAdmin),
+        2 => HomeScreen(isAdmin: widget.isAdmin),
+        _ => const ProfileScreen(),
+      },
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -124,21 +143,15 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final screens = [
-      const ReelsScreen(),
-      MessagesScreen(isAdmin: widget.isAdmin),
-      HomeScreen(isAdmin: widget.isAdmin),
-      const ProfileScreen(),
-    ];
-
     return Scaffold(
-      body: PageView(
+      body: PageView.builder(
         controller: _pageController,
+        itemCount: 4,
         onPageChanged: (i) {
           setState(() => _index = i);
           workManagerActivity.reportActive(profile: widget.profile);
         },
-        children: screens,
+        itemBuilder: (context, index) => _screenFor(index),
       ),
       bottomNavigationBar: VanamBottomNav(
         currentIndex: _index,
@@ -188,3 +201,28 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 }
 
 enum _GlobalAction { invite, feedback }
+
+/// Keeps a lazily-built tab's state alive once it's been visited, instead
+/// of PageView disposing it as soon as it scrolls out of the viewport
+/// (which would otherwise re-run each screen's fetch every time the user
+/// swipes back to it).
+class _KeepAlivePage extends StatefulWidget {
+  const _KeepAlivePage({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_KeepAlivePage> createState() => _KeepAlivePageState();
+}
+
+class _KeepAlivePageState extends State<_KeepAlivePage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
+}

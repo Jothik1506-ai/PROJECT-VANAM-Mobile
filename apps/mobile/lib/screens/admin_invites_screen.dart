@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -61,7 +64,12 @@ class _AdminInvitesScreenState extends State<AdminInvitesScreen> {
           recoveryCode: recoveryCode,
         );
       }
-    } catch (e) {
+    } catch (e, st) {
+      // Was previously just discarded — hid the real cause (network error
+      // vs. RLS violation vs. RPC error) behind one generic message,
+      // making "Could not create member" failures impossible to triage.
+      debugPrint('createInvite failed: $e');
+      unawaited(FirebaseCrashlytics.instance.recordError(e, st, fatal: false));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -88,7 +96,9 @@ class _AdminInvitesScreenState extends State<AdminInvitesScreen> {
           recoveryCode: recoveryCode,
         );
       }
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('issueCredentials failed: $e');
+      unawaited(FirebaseCrashlytics.instance.recordError(e, st, fatal: false));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -114,7 +124,9 @@ class _AdminInvitesScreenState extends State<AdminInvitesScreen> {
           recoveryCode: recoveryCode,
         );
       }
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('resetPassword failed: $e');
+      unawaited(FirebaseCrashlytics.instance.recordError(e, st, fatal: false));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Could not reset password. Try again.')),

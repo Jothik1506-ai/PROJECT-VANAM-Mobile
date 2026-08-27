@@ -103,20 +103,33 @@ class WorkManagerActivity {
       payload['lastFeedbackAt'] = lastFeedbackAt.toIso8601String();
     }
 
-    final client = HttpClient();
+    // Hard cap on the whole request-response cycle. HttpClient has no
+    // built-in overall timeout (connectionTimeout only covers the initial
+    // TCP connect, not a slow/hanging response), and every caller of this
+    // method treats it as fire-and-forget observability — so a slow or
+    // sleeping server must never be able to hang this beyond a few
+    // seconds, even if some future call site starts awaiting it again.
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
     try {
-      final request = await client.postUrl(Uri.parse(endpoint));
-      request.headers.contentType = ContentType.json;
-      request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $sharedSecret');
-      request.write(jsonEncode(payload));
+      await Future(() async {
+        final request = await client.postUrl(Uri.parse(endpoint));
+        request.headers.contentType = ContentType.json;
+        request.headers.set(
+          HttpHeaders.authorizationHeader,
+          'Bearer $sharedSecret',
+        );
+        request.write(jsonEncode(payload));
 
-      final response = await request.close();
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        await response.drain<void>();
-      }
+        final response = await request.close();
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          await response.drain<void>();
+        }
+      }).timeout(const Duration(seconds: 8));
     } catch (_) {
       // Work Manager activity is admin observability, not app-critical UX.
-      // Never block login, chat, push registration, or feedback on it.
+      // Never block login, chat, push registration, or feedback on it —
+      // including on a timeout, a DNS failure, or any other transient
+      // network condition.
     } finally {
       client.close(force: true);
     }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../auth/auth_service.dart';
@@ -51,7 +53,11 @@ class _AuthGateState extends State<AuthGate> {
       if (!profile.nameConfirmed) {
         return SetDisplayNameScreen(isAdmin: profile.isAdmin);
       }
-      await workManagerActivity.reportLogin(profile);
+      // Fire-and-forget: this is admin observability, not app-critical UX.
+      // Never let a slow/unreachable Work Manager endpoint stall login —
+      // it used to be awaited here and could hang the whole app on a
+      // sleeping/slow server with no timeout underneath it.
+      unawaited(workManagerActivity.reportLogin(profile));
       return AppShell(isAdmin: profile.isAdmin, profile: profile);
     } catch (_) {
       // Offline or a transient error resolving the profile must not strand

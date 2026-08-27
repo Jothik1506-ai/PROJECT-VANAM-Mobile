@@ -1,6 +1,17 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'family_profile.dart';
+
+// reportLogin being awaited with no timeout used to be able to hang the
+// whole login path indefinitely — this call has the same shape (an
+// unbounded network round-trip on the critical path before the app can
+// show anything), so it gets the same fix: a bounded timeout instead of
+// no cap at all. AuthGate already treats any exception here as "show
+// Login" rather than crashing, so a timeout degrades the same way a real
+// network error already does.
+const _kProfileFetchTimeout = Duration(seconds: 12);
 
 /// Global instance, mirroring the ProfileController/ChatController pattern
 /// elsewhere in this app. Safe as a top-level `final` because it's only
@@ -35,15 +46,21 @@ class AuthService {
     required String password,
   }) async {
     try {
-      await _client.auth.signInWithPassword(
-        email: _emailFor(username.trim().toLowerCase()),
-        password: password,
-      );
+      await _client.auth
+          .signInWithPassword(
+            email: _emailFor(username.trim().toLowerCase()),
+            password: password,
+          )
+          .timeout(_kProfileFetchTimeout);
     } on AuthException catch (e) {
       throw LoginException(
         e.message.toLowerCase().contains('invalid')
             ? 'Wrong username or password.'
             : e.message,
+      );
+    } on TimeoutException {
+      throw const LoginException(
+        'Login is taking too long. Check your connection and try again.',
       );
     }
   }
@@ -70,7 +87,8 @@ class AuthService {
         .from('profiles')
         .select()
         .eq('id', uid)
-        .maybeSingle();
+        .maybeSingle()
+        .timeout(_kProfileFetchTimeout);
     if (row == null) return null;
     return FamilyProfile.fromJson(row);
   }

@@ -1,8 +1,20 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'e2ee_service.dart';
+
+// Every RPC/query in this file previously had no timeout at all — on a
+// slow or flaky connection, opening a chat or sending the first message
+// could hang indefinitely (this chain runs up to 4-6+ sequential network
+// calls before a message can be decrypted/sent), with nothing but
+// "Encryption is syncing" on screen. AppShell's 45s periodic timer also
+// re-runs this whole chain across every conversation in the background,
+// so a stuck call recurred continuously rather than failing once. Each
+// call below now has a bounded timeout so a bad connection surfaces as a
+// (retryable) error instead of a silent hang.
+const _kRpcTimeout = Duration(seconds: 10);
 
 final keySyncService = KeySyncService(Supabase.instance.client);
 
@@ -23,6 +35,12 @@ class KeySyncService {
 
   final Map<String, Uint8List> _cache = {};
   Future<void>? _publicKeyReady;
+  // AppShell calls refreshAccessibleScopes() at startup, on every app
+  // resume, and on a 45s repeating timer — with no guard, a slow refresh
+  // (many direct conversations, each doing several sequential RPCs) could
+  // still be running when the next trigger fired, starting an overlapping
+  // second pass over the same conversations at the same time.
+  Future<void>? _refreshInProgress;
 
   String _cacheKey(String scope, String scopeId) => '$scope:$scopeId';
 
@@ -52,10 +70,15 @@ class KeySyncService {
         .from('profiles')
         .select('public_key')
         .eq('id', uid)
-        .maybeSingle();
+        .maybeSingle()
+        .timeout(_kRpcTimeout);
     if (row != null && row['public_key'] == myKey) return;
 
-    await _client.from('profiles').update({'public_key': myKey}).eq('id', uid);
+    await _client
+        .from('profiles')
+        .update({'public_key': myKey})
+        .eq('id', uid)
+        .timeout(_kRpcTimeout);
   }
 
   /// Returns the scope's plaintext symmetric key, or null if this device
@@ -72,10 +95,12 @@ class KeySyncService {
     final cached = _cache[cacheKey];
     if (cached != null) return cached;
 
-    final myWrap = await _client.rpc<String?>(
-      'fetch_my_key_wrap',
-      params: {'p_scope': scope, 'p_scope_id': scopeId},
-    );
+    final myWrap = await _client
+        .rpc<String?>(
+          'fetch_my_key_wrap',
+          params: {'p_scope': scope, 'p_scope_id': scopeId},
+        )
+        .timeout(_kRpcTimeout);
     if (myWrap != null) {
       final key = await _e2ee.unsealMyKey(myWrap);
       if (key != null) {
@@ -88,10 +113,9 @@ class KeySyncService {
       // happens after reinstall/clear-data. Remove only our unusable copy;
       // another participant that still has the scope key will reseal it for
       // the new public key on their next refresh/open.
-      await _client.rpc(
-        'delete_own_key_wrap',
-        params: {'p_scope': scope, 'p_scope_id': scopeId},
-      );
+      await _client
+          .rpc('delete_own_key_wrap', params: {'p_scope': scope, 'p_scope_id': scopeId})
+          .timeout(_kRpcTimeout);
     }
 
     // No wrap for me yet. If nothing has ever been created for this scope,
@@ -99,10 +123,12 @@ class KeySyncService {
     // wins — key_wraps' unique constraint makes a second concurrent
     // creator's self-wrap a harmless no-op via ON CONFLICT DO NOTHING,
     // they'll just pick up the real key from their own reseal pass next).
-    final exists = await _client.rpc<bool>(
-      'scope_key_exists',
-      params: {'p_scope': scope, 'p_scope_id': scopeId},
-    );
+    final exists = await _client
+        .rpc<bool>(
+          'scope_key_exists',
+          params: {'p_scope': scope, 'p_scope_id': scopeId},
+        )
+        .timeout(_kRpcTimeout);
     if (exists) return null;
 
     final newKey = _e2ee.generateSymmetricKey();
@@ -112,15 +138,17 @@ class KeySyncService {
       recipientPublicKeyBase64: myPublicKey,
     );
     final uid = _client.auth.currentUser!.id;
-    await _client.rpc(
-      'upload_key_wrap',
-      params: {
-        'p_scope': scope,
-        'p_scope_id': scopeId,
-        'p_member_id': uid,
-        'p_sealed_key': sealedForSelf,
-      },
-    );
+    await _client
+        .rpc(
+          'upload_key_wrap',
+          params: {
+            'p_scope': scope,
+            'p_scope_id': scopeId,
+            'p_member_id': uid,
+            'p_sealed_key': sealedForSelf,
+          },
+        )
+        .timeout(_kRpcTimeout);
     _cache[cacheKey] = newKey;
     await resealForMissingMembers(scope: scope, scopeId: scopeId, key: newKey);
     return newKey;
@@ -136,10 +164,12 @@ class KeySyncService {
     required String scopeId,
     required Uint8List key,
   }) async {
-    final missing = await _client.rpc<List<dynamic>>(
-      'list_missing_key_wraps',
-      params: {'p_scope': scope, 'p_scope_id': scopeId},
-    );
+    final missing = await _client
+        .rpc<List<dynamic>>(
+          'list_missing_key_wraps',
+          params: {'p_scope': scope, 'p_scope_id': scopeId},
+        )
+        .timeout(_kRpcTimeout);
 
     for (final row in missing.whereType<Map<String, dynamic>>()) {
       final memberId = row['member_id'] as String?;
@@ -150,15 +180,17 @@ class KeySyncService {
         symmetricKey: key,
         recipientPublicKeyBase64: publicKey,
       );
-      await _client.rpc(
-        'upload_key_wrap',
-        params: {
-          'p_scope': scope,
-          'p_scope_id': scopeId,
-          'p_member_id': memberId,
-          'p_sealed_key': sealed,
-        },
-      );
+      await _client
+          .rpc(
+            'upload_key_wrap',
+            params: {
+              'p_scope': scope,
+              'p_scope_id': scopeId,
+              'p_member_id': memberId,
+              'p_sealed_key': sealed,
+            },
+          )
+          .timeout(_kRpcTimeout);
     }
   }
 
@@ -174,10 +206,12 @@ class KeySyncService {
   }) async {
     await ensurePublicKeyUploaded();
 
-    await _client.rpc(
-      'reset_key_wraps_for_scope',
-      params: {'p_scope': scope, 'p_scope_id': scopeId},
-    );
+    await _client
+        .rpc(
+          'reset_key_wraps_for_scope',
+          params: {'p_scope': scope, 'p_scope_id': scopeId},
+        )
+        .timeout(_kRpcTimeout);
 
     final newKey = _e2ee.generateSymmetricKey();
     final myPublicKey = await _e2ee.myPublicKeyBase64();
@@ -186,15 +220,17 @@ class KeySyncService {
       recipientPublicKeyBase64: myPublicKey,
     );
     final uid = _client.auth.currentUser!.id;
-    await _client.rpc(
-      'upload_key_wrap',
-      params: {
-        'p_scope': scope,
-        'p_scope_id': scopeId,
-        'p_member_id': uid,
-        'p_sealed_key': sealedForSelf,
-      },
-    );
+    await _client
+        .rpc(
+          'upload_key_wrap',
+          params: {
+            'p_scope': scope,
+            'p_scope_id': scopeId,
+            'p_member_id': uid,
+            'p_sealed_key': sealedForSelf,
+          },
+        )
+        .timeout(_kRpcTimeout);
 
     _cache[_cacheKey(scope, scopeId)] = newKey;
     await resealForMissingMembers(scope: scope, scopeId: scopeId, key: newKey);
@@ -204,14 +240,25 @@ class KeySyncService {
   /// Refreshes every chat this member can access. A keyed device calling
   /// this on app start automatically reseals missing wraps for a family
   /// member who reinstalled, without requiring each chat to be opened.
-  Future<void> refreshAccessibleScopes() async {
+  Future<void> refreshAccessibleScopes() {
+    final existing = _refreshInProgress;
+    if (existing != null) return existing;
+
+    final run = _refreshAccessibleScopes().whenComplete(() {
+      _refreshInProgress = null;
+    });
+    _refreshInProgress = run;
+    return run;
+  }
+
+  Future<void> _refreshAccessibleScopes() async {
     try {
       await ensurePublicKeyUploaded();
       await getScopeKey(scope: 'group', scopeId: 'family-group');
 
-      final rows = await _client.rpc<List<dynamic>>(
-        'list_direct_conversations',
-      );
+      final rows = await _client
+          .rpc<List<dynamic>>('list_direct_conversations')
+          .timeout(_kRpcTimeout);
       for (final row in rows.whereType<Map<String, dynamic>>()) {
         final conversationId = row['conversation_id'] as String?;
         if (conversationId == null) continue;
