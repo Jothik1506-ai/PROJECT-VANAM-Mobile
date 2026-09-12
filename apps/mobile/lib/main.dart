@@ -4,9 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/painting.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import 'chat/chat_controller.dart';
 import 'config/app_config.dart';
 import 'notifications/push_navigation.dart';

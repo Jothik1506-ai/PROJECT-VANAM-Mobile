@@ -41,13 +41,16 @@ class VanamCachedImage extends StatefulWidget {
   final WidgetBuilder? errorWidget;
   final ImageWidgetBuilder? imageBuilder;
 
-  static final cacheManager = CacheManager(
-    Config(
-      'vanam_family_media',
-      stalePeriod: const Duration(days: 7),
-      maxNrOfCacheObjects: 80,
-    ),
-  );
+  // Must be an ImageCacheManager (not a plain CacheManager) because
+  // CachedNetworkImage below is given memCacheWidth/maxWidthDiskCache —
+  // cached_network_image asserts the cache manager supports resizing
+  // whenever either is set, and throws otherwise. That assertion is
+  // stripped in release builds (so this silently just skipped the resize
+  // optimization there — images still loaded fine), but a debug build hit
+  // the real assertion failure, which surfaced as every photo failing to
+  // load ("Photo unavailable") the moment private-bucket signed URLs (a
+  // different code path than the old public URLs) started being used.
+  static final cacheManager = _VanamImageCacheManager();
 
   @override
   State<VanamCachedImage> createState() => _VanamCachedImageState();
@@ -93,6 +96,22 @@ class _VanamCachedImageState extends State<VanamCachedImage> {
       imageBuilder: widget.imageBuilder,
     );
   }
+}
+
+class _VanamImageCacheManager extends CacheManager with ImageCacheManager {
+  static const _key = 'vanam_family_media';
+  static final _instance = _VanamImageCacheManager._();
+
+  factory _VanamImageCacheManager() => _instance;
+
+  _VanamImageCacheManager._()
+    : super(
+        Config(
+          _key,
+          stalePeriod: const Duration(days: 7),
+          maxNrOfCacheObjects: 80,
+        ),
+      );
 }
 
 String _transformedSupabaseUrl(

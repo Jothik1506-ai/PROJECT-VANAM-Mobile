@@ -6,9 +6,9 @@ import 'package:flutter/material.dart';
 class VanamColors {
   VanamColors._();
 
-  static const brand = Color(0xFF1F5D2E); // forest green — platform chrome
-  static const brandDark = Color(0xFF163F20);
-  static const surface = Color(0xFFFAF6EC); // cream background
+  static const brand = Color(0xFFE25822); // saffron orange — festival theme
+  static const brandDark = Color(0xFFC4471B); // darker saffron
+  static const surface = Color(0xFFFFF7F2); // warm cream background
   static const surfaceCard = Color(0xFFFFFFFF);
   static const ink = Color(0xFF20241F); // primary text
   static const inkMuted = Color(0xFF6B7268); // secondary text
@@ -93,8 +93,8 @@ class VanamPalette extends ThemeExtension<VanamPalette> {
   );
 
   static const dark = VanamPalette(
-    brand: Color(0xFF8DCB91),
-    brandStrong: Color(0xFFE0F1DF),
+    brand: Color(0xFFF37544),
+    brandStrong: Color(0xFFFF9E77),
     surface: Color(0xFF10150F),
     surfaceCard: Color(0xFF182117),
     ink: Color(0xFFF2F0E8),
