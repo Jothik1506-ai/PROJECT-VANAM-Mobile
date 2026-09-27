@@ -1,3 +1,8 @@
 vanam-ota-updates/*.apk
 supabase/.temp/
 docs/APP-ISSUES-AUDIT.md
+
+build-output/
+apps/mobile/.vscode/
+apps/mobile/android/.kotlin/
+play-store-assets/*-symbols-and-mapping.zip
