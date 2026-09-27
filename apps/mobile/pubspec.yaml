@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+26
+version: 1.0.0+27
 
 environment:
   sdk: ^3.11.4
@@ -43,14 +43,14 @@ dependencies:
   http: ^1.2.2 # fetch update manifest + download APK
   url_launcher: ^6.3.1 # open VANAM web pages from Home updates
   image_picker: ^1.1.2 # choose multiple photos for Home family posts
-  package_info_plus: ^8.1.1 # read installed versionCode
+  package_info_plus: ^10.2.1 # read installed versionCode
   path_provider: ^2.1.5 # somewhere to write the downloaded APK
   crypto: ^3.0.6 # SHA-256 verification of the download
   open_filex: ^4.5.0 # hand the APK to the system package installer
 
   # QR invite login (admin's invite screen shows one, Login screen scans it).
   qr_flutter: ^4.1.0 # render the QR code
-  mobile_scanner: ^6.0.6 # in-app camera scanner
+  mobile_scanner: ^7.4.2 # in-app camera scanner
   cryptography: ^2.9.0
   flutter_secure_storage: ^10.3.1
   firebase_core: ^4.13.0
@@ -59,6 +59,8 @@ dependencies:
   flutter_local_notifications: ^22.3.0
   cached_network_image: ^3.4.1
   flutter_cache_manager: ^3.4.2
+  video_player: ^2.9.2
+  share_plus: ^13.3.0 # download-and-share a post's media outside Vanam
 
 dev_dependencies:
   flutter_test:
