@@ -192,6 +192,17 @@ ThemeData buildVanamTheme({Brightness brightness = Brightness.light}) {
       ),
       bodyMedium: TextStyle(color: palette.inkMuted, fontSize: 14),
     ),
+    // Without this, bottom sheets (Create Post, global actions, etc.) fell
+    // back to Material 3's auto-generated tonal surface tint, which picks
+    // up a warm cast from the saffron seed color that doesn't quite match
+    // the app's own hand-picked surface/card tokens used by everything
+    // inside the sheet (the caption field, buttons) — a subtle but visible
+    // mismatch. Pinning it to the same token as the rest of the app fixes
+    // that seam.
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: palette.surface,
+      surfaceTintColor: Colors.transparent,
+    ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: palette.surfaceCard,

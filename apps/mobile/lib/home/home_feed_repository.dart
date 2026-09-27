@@ -10,7 +10,8 @@ abstract class HomeFeedRepository {
 
   Future<void> createPost({
     required String caption,
-    required List<XFile> photos,
+    List<XFile> photos = const [],
+    XFile? video,
   });
 
   Future<void> deletePost(Post post);
@@ -31,7 +32,8 @@ class EmptyHomeFeedRepository implements HomeFeedRepository {
   @override
   Future<void> createPost({
     required String caption,
-    required List<XFile> photos,
+    List<XFile> photos = const [],
+    XFile? video,
   }) async {
     throw const HomeFeedException('Preview mode cannot create posts.');
   }
@@ -54,25 +56,15 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
 
   static const maxPhotosPerPost = 20;
   static const bucket = 'family-post-media';
+  static const videoBucket = 'family-video-media';
 
   final SupabaseClient _client;
 
-  // How long a signed media URL stays valid. The bucket used to be public
-  // (bypassing storage RLS entirely — anyone with a URL could open a
-  // family photo without being a member), so URLs are now signed
-  // per-request instead. An hour comfortably covers one feed session
-  // without needing to re-sign mid-scroll, while still expiring rather
-  // than being a permanent link if it ever leaks.
+  // How long a signed media URL stays valid.
   static const _signedUrlTtl = Duration(hours: 1);
 
-  // fetchPosts() can return up to 50 posts, each needing its own
-  // sign-URLs request — running all 50 through Future.wait at once fired
-  // ~50 simultaneous Storage requests the instant the feed loaded. This
-  // caps how many posts are signed concurrently so a big feed doesn't
-  // burst the network/CPU at once (this is exactly the kind of startup
-  // burst already fixed for image *building* via Home's lazy SliverList —
-  // this fixes the equivalent burst one layer down, in the network calls
-  // that produce the URLs those images load from).
+  // Caps how many posts are signed concurrently so a big feed doesn't burst
+  // the network/CPU at once.
   static const _signingConcurrency = 6;
 
   @override
@@ -93,15 +85,38 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
       final batch = postRows.skip(start).take(_signingConcurrency);
       final batchPosts = await Future.wait(
         batch.map((row) async {
+          final rawItems = row['media_items'];
           final paths = row['media_paths'];
-          final mediaUrls = paths is List
-              ? await _signedUrlsFor(paths.whereType<String>().toList())
-              : const <String>[];
+
+          List<PostMediaItem> mediaItems;
+          List<String> mediaUrls;
+
+          if (rawItems is List && rawItems.isNotEmpty) {
+            mediaItems = await _signedMediaItemsFor(rawItems);
+            mediaUrls = mediaItems.map((m) => m.url).toList(growable: false);
+          } else if (paths is List && paths.isNotEmpty) {
+            mediaUrls = await _signedUrlsFor(paths.whereType<String>().toList());
+            mediaItems = mediaUrls
+                .map((u) => PostMediaItem(url: u, type: PostMediaType.photo))
+                .toList(growable: false);
+          } else {
+            mediaUrls = const [];
+            mediaItems = const [];
+          }
+
           return Post.fromJson({
             ...row,
             'is_mine': row['author_id'] == _client.auth.currentUser?.id,
             'liked_by_me': row['liked_by_me'] == true,
             'media_urls': mediaUrls,
+            'media_items': mediaItems
+                .map((m) => {
+                      'url': m.url,
+                      'media_type': m.type.name,
+                      'duration_seconds': m.durationSeconds,
+                      'thumbnail_url': m.thumbnailUrl,
+                    })
+                .toList(),
           });
         }),
       );
@@ -110,9 +125,63 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
     return posts;
   }
 
-  /// Signs every path in one batch call rather than one request per photo —
-  /// createSignedUrls still enforces the same storage RLS (is_active_member())
-  /// as the per-file API, just without an extra round trip per photo.
+  /// Signs structured media items by their specific storage bucket
+  /// ('family-post-media' or 'family-video-media').
+  Future<List<PostMediaItem>> _signedMediaItemsFor(List<dynamic> rawItems) async {
+    if (rawItems.isEmpty) return const [];
+    final bucketToIndicesAndPaths = <String, List<MapEntry<int, String>>>{};
+    for (var i = 0; i < rawItems.length; i++) {
+      final item = rawItems[i];
+      if (item is Map<String, dynamic>) {
+        final b = item['storage_bucket'] as String? ?? bucket;
+        final p = item['storage_path'] as String?;
+        if (p != null && p.isNotEmpty) {
+          bucketToIndicesAndPaths.putIfAbsent(b, () => []).add(MapEntry(i, p));
+        }
+      }
+    }
+
+    final signedUrlMap = <int, String>{};
+    for (final entry in bucketToIndicesAndPaths.entries) {
+      final bucketName = entry.key;
+      final pairs = entry.value;
+      final paths = pairs.map((p) => p.value).toList();
+      try {
+        final results = await _client.storage
+            .from(bucketName)
+            .createSignedUrlsResult(paths, _signedUrlTtl.inSeconds);
+        var idx = 0;
+        for (final res in results) {
+          if (res is SignedUrlSuccess && idx < pairs.length) {
+            signedUrlMap[pairs[idx].key] = res.signedUrl;
+          }
+          idx++;
+        }
+      } on StorageException {
+        // A signing failure for one post's media item must not blank out the feed.
+      }
+    }
+
+    final items = <PostMediaItem>[];
+    for (var i = 0; i < rawItems.length; i++) {
+      final item = rawItems[i];
+      if (item is Map<String, dynamic>) {
+        final url = signedUrlMap[i] ?? '';
+        if (url.isNotEmpty) {
+          items.add(
+            PostMediaItem(
+              url: url,
+              type: PostMediaType.fromString(item['media_type'] as String?),
+              durationSeconds: item['duration_seconds'] as int?,
+            ),
+          );
+        }
+      }
+    }
+    return items;
+  }
+
+  /// Legacy photo batch signer.
   Future<List<String>> _signedUrlsFor(List<String> paths) async {
     if (paths.isEmpty) return const [];
     try {
@@ -124,8 +193,6 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
           .map((r) => r.signedUrl)
           .toList(growable: false);
     } on StorageException {
-      // A signing failure for one post must not blank out the whole feed —
-      // that post's photos just show the existing error/broken-image state.
       return const [];
     }
   }
@@ -133,11 +200,15 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
   @override
   Future<void> createPost({
     required String caption,
-    required List<XFile> photos,
+    List<XFile> photos = const [],
+    XFile? video,
   }) async {
     final trimmedCaption = caption.trim();
-    if (trimmedCaption.isEmpty && photos.isEmpty) {
-      throw const HomeFeedException('Add a caption or at least one photo.');
+    if (trimmedCaption.isEmpty && photos.isEmpty && video == null) {
+      throw const HomeFeedException('Add a caption, photos, or a video.');
+    }
+    if (photos.isNotEmpty && video != null) {
+      throw const HomeFeedException('Choose photos or a video, not both.');
     }
     if (photos.length > maxPhotosPerPost) {
       throw const HomeFeedException('Choose 20 photos or fewer.');
@@ -156,17 +227,48 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
     final postId = post['id'] as String;
     final userId = _client.auth.currentUser?.id;
     if (userId == null) {
-      // The home_posts row above already exists with no media — clean it
-      // up rather than leaving an orphaned empty post in the feed.
       await _deletePostRowBestEffort(postId);
       throw const HomeFeedException('Sign in again before posting.');
     }
 
-    // If any photo fails partway through (upload or the row insert), the
-    // home_posts row created above would otherwise be left behind empty or
-    // with only some photos attached. Track what's been uploaded so far so
-    // a failure can be cleaned up instead of leaving a broken post visible
-    // to the whole family.
+    // Video upload flow
+    if (video != null) {
+      final uploadedVideoPaths = <String>[];
+      try {
+        final bytes = await video.readAsBytes();
+        final path = _videoPathFor(userId, postId, video.name);
+        await _client.storage
+            .from(videoBucket)
+            .uploadBinary(
+              path,
+              Uint8List.fromList(bytes),
+              fileOptions: FileOptions(
+                contentType: _videoContentTypeFor(video.name),
+                upsert: false,
+              ),
+            );
+        uploadedVideoPaths.add(path);
+        await _client.from('home_post_media').insert({
+          'post_id': postId,
+          'storage_bucket': videoBucket,
+          'storage_path': path,
+          'position': 0,
+          'media_type': 'video',
+        });
+        return;
+      } catch (error) {
+        if (uploadedVideoPaths.isNotEmpty) {
+          try {
+            await _client.storage.from(videoBucket).remove(uploadedVideoPaths);
+          } catch (_) {}
+        }
+        await _deletePostRowBestEffort(postId);
+        if (error is PostgrestException) throw _friendlyError(error);
+        rethrow;
+      }
+    }
+
+    // Photo upload flow
     final uploadedPaths = <String>[];
     try {
       for (var index = 0; index < photos.length; index++) {
@@ -196,11 +298,7 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
       if (uploadedPaths.isNotEmpty) {
         try {
           await _client.storage.from(bucket).remove(uploadedPaths);
-        } catch (_) {
-          // Best-effort — the DB row cleanup below is what actually keeps
-          // the post from appearing broken; a leftover orphaned file just
-          // wastes storage space.
-        }
+        } catch (_) {}
       }
       await _deletePostRowBestEffort(postId);
       if (error is PostgrestException) throw _friendlyError(error);
@@ -209,8 +307,7 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
   }
 
   /// Used only to clean up a home_posts row created by createPost when a
-  /// later step in the same call fails — must never let a cleanup failure
-  /// mask the original error being thrown to the caller.
+  /// later step in the same call fails.
   Future<void> _deletePostRowBestEffort(String postId) async {
     try {
       await _client.rpc<void>('delete_home_post', params: {'p_post_id': postId});
@@ -225,32 +322,27 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
         params: {'p_post_id': post.id},
       );
 
-      final storagePaths = paths
-          .whereType<Map<String, dynamic>>()
-          .map((row) => row['storage_path'] as String?)
-          .nonNulls
-          .toList(growable: false);
+      final bucketToPaths = <String, List<String>>{};
+      for (final row in paths) {
+        if (row is Map<String, dynamic>) {
+          final b = row['storage_bucket'] as String? ?? bucket;
+          final p = row['storage_path'] as String?;
+          if (p != null && p.isNotEmpty) {
+            bucketToPaths.putIfAbsent(b, () => []).add(p);
+          }
+        }
+      }
 
-      // Delete the DB row (and, via cascade, its home_post_media rows)
-      // *before* removing the storage files — the reverse order used to
-      // mean a failure here after storage had already been wiped left a
-      // post visibly stuck in the feed pointing at permanently-missing
-      // media. This way, if the row delete succeeds, the post disappears
-      // from the feed immediately regardless of what happens next; if the
-      // storage removal below then fails, the leftover files are just
-      // wasted (harmless) space rather than user-visible breakage.
       await _client.rpc<void>(
         'delete_home_post',
         params: {'p_post_id': post.id},
       );
 
-      if (storagePaths.isNotEmpty) {
+      for (final entry in bucketToPaths.entries) {
         try {
-          await _client.storage.from(bucket).remove(storagePaths);
+          await _client.storage.from(entry.key).remove(entry.value);
         } on StorageException {
-          // The post is already gone from the feed at this point — an
-          // orphaned file is a cleanup nice-to-have, not something the
-          // user needs to see an error for.
+          // Best-effort storage cleanup after DB row was deleted.
         }
       }
     } on PostgrestException catch (error) {
@@ -321,6 +413,20 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
     if (lower.endsWith('.png')) return 'image/png';
     if (lower.endsWith('.webp')) return 'image/webp';
     return 'image/jpeg';
+  }
+
+  String _videoPathFor(String userId, String postId, String name) {
+    final extension = name.contains('.') ? name.split('.').last.toLowerCase() : 'mp4';
+    return '$userId/$postId/video_${DateTime.now().millisecondsSinceEpoch}.$extension';
+  }
+
+  String _videoContentTypeFor(String name) {
+    final lower = name.toLowerCase();
+    if (lower.endsWith('.mov')) return 'video/quicktime';
+    if (lower.endsWith('.webm')) return 'video/webm';
+    if (lower.endsWith('.3gp')) return 'video/3gpp';
+    if (lower.endsWith('.mkv')) return 'video/x-matroska';
+    return 'video/mp4';
   }
 }
 

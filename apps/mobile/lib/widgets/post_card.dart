@@ -1,9 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../media/vanam_cached_image.dart';
 import '../models/post.dart';
 import '../theme/tokens.dart';
 import 'member_avatar.dart';
+import 'post_video_player.dart';
 
 /// Preview-only widget — Home Feed is Phase 3 (ARCHITECTURE.md Section 9).
 class PostCard extends StatelessWidget {
@@ -95,10 +101,20 @@ class PostCard extends StatelessWidget {
               ],
             ),
           ),
-          AspectRatio(
-            aspectRatio: 4 / 3,
-            child: _PostMediaCarousel(urls: post.mediaUrls),
-          ),
+          if (post.hasVideo && post.videoItem != null)
+            AspectRatio(
+              aspectRatio: 4 / 3,
+              child: PostVideoPlayer(
+                videoUrl: post.videoItem!.url,
+                durationSeconds: post.videoItem!.durationSeconds,
+                thumbnailUrl: post.videoItem!.thumbnailUrl,
+              ),
+            )
+          else
+            AspectRatio(
+              aspectRatio: 4 / 3,
+              child: _PostMediaCarousel(urls: post.mediaUrls),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(
               VanamSpacing.md,
@@ -157,6 +173,7 @@ class PostCard extends StatelessWidget {
                   tooltip: 'Share in Vanam',
                   visualDensity: VisualDensity.compact,
                 ),
+                _DownloadShareButton(post: post),
                 const Spacer(),
                 Icon(Icons.bookmark_border, size: 20, color: palette.ink),
               ],
@@ -169,6 +186,96 @@ class PostCard extends StatelessWidget {
 }
 
 enum _PostAction { delete }
+
+/// Downloads a post's media (all photos, or its one video) to a temp file
+/// and opens the OS share sheet — the only way for a photo/video actually
+/// hosted in Vanam's private storage bucket to leave the app (WhatsApp,
+/// Gallery, etc.) rather than staying inside "Share in Vanam".
+class _DownloadShareButton extends StatefulWidget {
+  const _DownloadShareButton({required this.post});
+
+  final Post post;
+
+  @override
+  State<_DownloadShareButton> createState() => _DownloadShareButtonState();
+}
+
+class _DownloadShareButtonState extends State<_DownloadShareButton> {
+  var _busy = false;
+
+  Future<void> _downloadAndShare() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final isVideo = widget.post.hasVideo && widget.post.videoItem != null;
+      final urls = isVideo
+          ? [widget.post.videoItem!.url]
+          : widget.post.mediaUrls;
+      if (urls.isEmpty) {
+        throw const _DownloadFailure('This post has no media to download.');
+      }
+
+      final tempDir = await getTemporaryDirectory();
+      final files = <XFile>[];
+      for (var i = 0; i < urls.length; i++) {
+        final response = await http
+            .get(Uri.parse(urls[i]))
+            .timeout(const Duration(seconds: 30));
+        if (response.statusCode != 200) {
+          throw const _DownloadFailure('Could not download media.');
+        }
+        final extension = isVideo ? 'mp4' : 'jpg';
+        final file = File(
+          '${tempDir.path}/vanam_${widget.post.id}_$i.$extension',
+        );
+        await file.writeAsBytes(response.bodyBytes);
+        files.add(XFile(file.path));
+      }
+
+      if (!mounted) return;
+      await SharePlus.instance.share(
+        ShareParams(
+          files: files,
+          text: widget.post.caption.isNotEmpty ? widget.post.caption : null,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not download this post.')),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.vanam;
+    return IconButton(
+      onPressed: _busy ? null : _downloadAndShare,
+      icon: _busy
+          ? SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: palette.ink,
+              ),
+            )
+          : Icon(Icons.download_outlined, size: 20, color: palette.ink),
+      tooltip: 'Download & share outside Vanam',
+      visualDensity: VisualDensity.compact,
+    );
+  }
+}
+
+class _DownloadFailure implements Exception {
+  const _DownloadFailure(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
 
 class _PostMediaCarousel extends StatefulWidget {
   const _PostMediaCarousel({required this.urls});

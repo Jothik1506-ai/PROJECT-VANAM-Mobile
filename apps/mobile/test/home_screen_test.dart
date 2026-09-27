@@ -27,7 +27,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Web Page Updates'), findsOneWidget);
-    expect(find.text('Varalakshmi Vratham'), findsOneWidget);
+    expect(find.text('Vinayaka Vratham'), findsOneWidget);
     expect(find.byIcon(Icons.open_in_new), findsOneWidget);
     expect(find.text('No family posts yet.'), findsOneWidget);
   });
@@ -55,7 +55,8 @@ class _FakeHomeFeedRepository implements HomeFeedRepository {
   @override
   Future<void> createPost({
     required String caption,
-    required List<XFile> photos,
+    List<XFile> photos = const [],
+    XFile? video,
   }) async {}
 
   @override

@@ -23,13 +23,16 @@ class ReelItem {
 List<ReelItem> flattenPostsToReelItems(List<Post> posts) {
   final items = <ReelItem>[];
   for (final post in posts) {
-    for (var i = 0; i < post.mediaUrls.length; i++) {
+    final photoUrls = post.mediaItems.isNotEmpty
+        ? post.mediaItems.where((m) => !m.isVideo).map((m) => m.url).toList()
+        : post.mediaUrls;
+    for (var i = 0; i < photoUrls.length; i++) {
       items.add(
         ReelItem(
           post: post,
-          mediaUrl: post.mediaUrls[i],
+          mediaUrl: photoUrls[i],
           mediaIndex: i,
-          mediaCount: post.mediaUrls.length,
+          mediaCount: photoUrls.length,
         ),
       );
     }

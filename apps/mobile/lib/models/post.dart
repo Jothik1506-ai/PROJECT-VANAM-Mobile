@@ -1,3 +1,39 @@
+enum PostMediaType {
+  photo,
+  video;
+
+  static PostMediaType fromString(String? value) {
+    if (value == 'video') return PostMediaType.video;
+    return PostMediaType.photo;
+  }
+}
+
+class PostMediaItem {
+  const PostMediaItem({
+    required this.url,
+    this.type = PostMediaType.photo,
+    this.durationSeconds,
+    this.thumbnailUrl,
+  });
+
+  final String url;
+  final PostMediaType type;
+  final int? durationSeconds;
+  final String? thumbnailUrl;
+
+  bool get isVideo => type == PostMediaType.video;
+  bool get isPhoto => type == PostMediaType.photo;
+
+  factory PostMediaItem.fromJson(Map<String, dynamic> json) {
+    return PostMediaItem(
+      url: json['url'] as String? ?? '',
+      type: PostMediaType.fromString(json['media_type'] as String?),
+      durationSeconds: json['duration_seconds'] as int?,
+      thumbnailUrl: json['thumbnail_url'] as String?,
+    );
+  }
+}
+
 class Post {
   const Post({
     required this.id,
@@ -10,6 +46,7 @@ class Post {
     required this.mediaUrls,
     required this.isMine,
     required this.likedByMe,
+    this.mediaItems = const [],
   });
 
   final String id;
@@ -22,6 +59,15 @@ class Post {
   final List<String> mediaUrls;
   final bool isMine;
   final bool likedByMe;
+  final List<PostMediaItem> mediaItems;
+
+  bool get hasVideo => mediaItems.any((m) => m.isVideo);
+  PostMediaItem? get videoItem {
+    for (final m in mediaItems) {
+      if (m.isVideo) return m;
+    }
+    return null;
+  }
 
   String get timeAgo {
     final difference = DateTime.now().difference(createdAt);
@@ -34,6 +80,21 @@ class Post {
 
   factory Post.fromJson(Map<String, dynamic> json) {
     final media = json['media_urls'];
+    final rawItems = json['media_items'];
+    final items = <PostMediaItem>[];
+    if (rawItems is List) {
+      for (final item in rawItems) {
+        if (item is Map<String, dynamic>) {
+          items.add(PostMediaItem.fromJson(item));
+        }
+      }
+    }
+    final urls = media is List
+        ? media.whereType<String>().toList(growable: false)
+        : (items.isNotEmpty
+            ? items.map((m) => m.url).toList(growable: false)
+            : const <String>[]);
+
     return Post(
       id: json['id'] as String? ?? '',
       authorId: json['author_id'] as String? ?? '',
@@ -44,9 +105,8 @@ class Post {
       caption: json['caption'] as String? ?? '',
       likeCount: json['like_count'] as int? ?? 0,
       commentCount: json['comment_count'] as int? ?? 0,
-      mediaUrls: media is List
-          ? media.whereType<String>().toList(growable: false)
-          : const [],
+      mediaUrls: urls,
+      mediaItems: items,
       isMine: json['is_mine'] as bool? ?? false,
       likedByMe: json['liked_by_me'] as bool? ?? false,
     );

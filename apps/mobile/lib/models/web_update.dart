@@ -16,6 +16,14 @@ class WebUpdate {
 
 const webUpdates = [
   WebUpdate(
+    title: 'Vinayaka Vratham',
+    status: 'Ready for launch',
+    description:
+        'Telugu puja materials, procedure, mantras, story, font controls, search, and printable reading view.',
+    path: 'Vinayaka%20vratham/',
+    iconLabel: 'Vratham',
+  ),
+  WebUpdate(
     title: 'Varalakshmi Vratham',
     status: 'Ready for launch',
     description:

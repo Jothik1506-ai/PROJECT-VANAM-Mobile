@@ -264,7 +264,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           _SectionHeader(
                             title: 'Family Updates',
                             subtitle:
-                                'Share photos and notes with the family.',
+                                'Share photos, videos, and notes with the family.',
                             action: IconButton.filled(
                               onPressed: _showCreatePost,
                               icon: const Icon(Icons.add),
@@ -831,7 +831,7 @@ class _EmptyFamilyUpdates extends StatelessWidget {
           ),
           const SizedBox(height: VanamSpacing.xs),
           Text(
-            'Create the first post with photos or a short note.',
+            'Create the first post with photos, videos, or a short note.',
             textAlign: TextAlign.center,
             style: TextStyle(color: palette.inkMuted, height: 1.3),
           ),
@@ -888,9 +888,13 @@ class _CreatePostSheet extends StatefulWidget {
 }
 
 class _CreatePostSheetState extends State<_CreatePostSheet> {
+  static const maxVideoBytes = 50 * 1024 * 1024; // 50MB hard cap
+  static const maxVideoDuration = Duration(seconds: 60); // 60s hard cap
+
   final _caption = TextEditingController();
   final _picker = ImagePicker();
   var _photos = <XFile>[];
+  XFile? _video;
   var _saving = false;
   String? _error;
 
@@ -908,12 +912,44 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
     );
     if (!mounted || picked.isEmpty) return;
     setState(() {
+      _video = null; // Mutually exclusive with video in V1
       _photos = picked
           .take(SupabaseHomeFeedRepository.maxPhotosPerPost)
           .toList();
       _error = picked.length > SupabaseHomeFeedRepository.maxPhotosPerPost
           ? 'Only the first 20 photos were added.'
           : null;
+    });
+  }
+
+  Future<void> _pickVideo() async {
+    final picked = await _picker.pickVideo(
+      source: ImageSource.gallery,
+      maxDuration: maxVideoDuration,
+    );
+    if (!mounted || picked == null) return;
+
+    final length = await picked.length();
+    if (length > maxVideoBytes) {
+      final mb = (length / (1024 * 1024)).toStringAsFixed(1);
+      setState(() {
+        _error = 'Video is too large (${mb}MB). Maximum allowed size is 50MB.';
+      });
+      return;
+    }
+
+    setState(() {
+      _photos = []; // Mutually exclusive with photos in V1
+      _video = picked;
+      _error = null;
+    });
+  }
+
+  void _clearMedia() {
+    setState(() {
+      _photos = [];
+      _video = null;
+      _error = null;
     });
   }
 
@@ -926,6 +962,7 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
       await widget.repository.createPost(
         caption: _caption.text,
         photos: _photos,
+        video: _video,
       );
       if (mounted) Navigator.of(context).pop(true);
     } catch (error) {
@@ -967,16 +1004,118 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
             decoration: const InputDecoration(
               labelText: 'Caption',
               hintText: 'Write a family update',
+              alignLabelWithHint: true,
             ),
           ),
           const SizedBox(height: VanamSpacing.md),
-          OutlinedButton.icon(
-            onPressed: _saving ? null : _pickPhotos,
-            icon: const Icon(Icons.photo_library_outlined),
-            label: Text(
-              _photos.isEmpty ? 'Add photos' : '${_photos.length} photos added',
+          if (_photos.isEmpty && _video == null)
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _saving ? null : _pickPhotos,
+                    icon: const Icon(Icons.photo_library_outlined),
+                    label: const Text('Add Photos'),
+                  ),
+                ),
+                const SizedBox(width: VanamSpacing.sm),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _saving ? null : _pickVideo,
+                    icon: const Icon(Icons.videocam_outlined),
+                    label: const Text('Add Video'),
+                  ),
+                ),
+              ],
+            )
+          else if (_photos.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: VanamSpacing.md,
+                vertical: VanamSpacing.sm,
+              ),
+              decoration: BoxDecoration(
+                color: palette.surfaceCard,
+                borderRadius: BorderRadius.circular(VanamRadii.field),
+                border: Border.all(color: palette.line),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.photo_library, color: palette.brand, size: 20),
+                  const SizedBox(width: VanamSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      '${_photos.length} photo${_photos.length == 1 ? '' : 's'} added',
+                      style: TextStyle(
+                        color: palette.ink,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: _saving ? null : _clearMedia,
+                    tooltip: 'Remove photos',
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
+            )
+          else if (_video != null)
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: VanamSpacing.md,
+                vertical: VanamSpacing.sm,
+              ),
+              decoration: BoxDecoration(
+                color: palette.surfaceCard,
+                borderRadius: BorderRadius.circular(VanamRadii.field),
+                border: Border.all(color: palette.line),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.videocam, color: palette.brand, size: 22),
+                  const SizedBox(width: VanamSpacing.sm),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _video!.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: palette.ink,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                        FutureBuilder<int>(
+                          future: _video!.length(),
+                          builder: (context, snapshot) {
+                            final bytes = snapshot.data ?? 0;
+                            final mb = (bytes / (1024 * 1024)).toStringAsFixed(1);
+                            return Text(
+                              'Video attached • ${mb}MB',
+                              style: TextStyle(
+                                color: palette.inkMuted,
+                                fontSize: 11,
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: _saving ? null : _clearMedia,
+                    tooltip: 'Remove video',
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
             ),
-          ),
           if (_error != null) ...[
             const SizedBox(height: VanamSpacing.sm),
             Text(_error!, style: TextStyle(color: palette.danger)),
