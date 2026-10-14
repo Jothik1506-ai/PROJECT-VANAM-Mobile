@@ -176,7 +176,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 subtitle: const Text('Create or manage family access'),
                 onTap: () => Navigator.of(context).pop(_GlobalAction.invite),
               ),
-            ListTile(
+            // Messages, Home and Profile have a Feedback button in their
+            // header; Reels has no header, so it stays reachable here.
+            if (_index == 0)
+              ListTile(
               leading: const Icon(Icons.feedback_outlined),
               title: const Text('Feedback'),
               subtitle: Text('Send feedback from ${_screenLabels[_index]}'),

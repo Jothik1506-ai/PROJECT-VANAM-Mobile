@@ -5,6 +5,7 @@ import '../chat/direct_conversation.dart';
 import '../chat/supabase_direct_chat_sync.dart';
 import '../models/conversation.dart';
 import '../theme/tokens.dart';
+import '../widgets/feedback_button.dart';
 import '../widgets/conversation_tile.dart';
 import '../widgets/direct_conversation_tile.dart';
 
@@ -83,6 +84,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
                     ),
                     child: Icon(Icons.search, color: palette.ink, size: 20),
                   ),
+                  const SizedBox(width: VanamSpacing.xs),
+                  const FeedbackIconButton(screen: 'Messages'),
                 ],
               ),
             ),

@@ -12,6 +12,7 @@ import '../models/story.dart';
 import '../models/web_update.dart';
 import '../notifications/in_app_notification_service.dart';
 import '../theme/tokens.dart';
+import '../widgets/feedback_button.dart';
 import '../widgets/member_avatar.dart';
 import '../widgets/post_card.dart';
 import '../widgets/story_avatar.dart';
@@ -704,6 +705,7 @@ class _HomeAppBar extends StatelessWidget {
             onPressed: () {},
             icon: Icon(Icons.search, color: palette.ink),
           ),
+          const FeedbackIconButton(screen: 'Home'),
           FutureBuilder<int>(
             future: unreadNotifications,
             builder: (context, snapshot) {

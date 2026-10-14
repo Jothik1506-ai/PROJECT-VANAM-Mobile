@@ -23,6 +23,24 @@ class FeedbackButton extends StatelessWidget {
   }
 }
 
+/// Compact header action that opens the feedback dialog — sits next to the
+/// search button on Messages and Home, and in the Profile header.
+class FeedbackIconButton extends StatelessWidget {
+  const FeedbackIconButton({super.key, required this.screen, this.color});
+
+  final String screen;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: () => showFeedbackDialog(context, screen: screen),
+      icon: Icon(Icons.feedback_outlined, color: color ?? context.vanam.ink),
+      tooltip: 'Feedback',
+    );
+  }
+}
+
 Future<void> showFeedbackDialog(
   BuildContext context, {
   required String screen,

@@ -6,6 +6,7 @@ import '../profile/profile_controller.dart';
 import '../profile/user_profile.dart';
 import '../theme/theme_controller.dart';
 import '../theme/tokens.dart';
+import '../widgets/feedback_button.dart';
 import '../widgets/vanam_logo.dart';
 import 'change_password_screen.dart';
 import 'auth_gate.dart';
@@ -80,7 +81,9 @@ class _ProfileHeader extends StatelessWidget {
     return ValueListenableBuilder<UserProfile>(
       valueListenable: profileController,
       builder: (context, profile, child) {
-        return Container(
+        return Stack(
+          children: [
+            Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(
             vertical: VanamSpacing.xl,
@@ -142,6 +145,13 @@ class _ProfileHeader extends StatelessWidget {
               ),
             ],
           ),
+            ),
+            const Positioned(
+              top: VanamSpacing.xs,
+              right: VanamSpacing.xs,
+              child: FeedbackIconButton(screen: 'Profile', color: Colors.white),
+            ),
+          ],
         );
       },
     );
