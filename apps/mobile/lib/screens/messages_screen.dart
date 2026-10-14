@@ -26,6 +26,9 @@ class MessagesScreen extends StatefulWidget {
 
 class _MessagesScreenState extends State<MessagesScreen> {
   late Future<List<DirectConversation>> _directConversationsFuture;
+  final _searchController = TextEditingController();
+  bool _searching = false;
+  String _query = '';
 
   @override
   void initState() {
@@ -37,6 +40,27 @@ class _MessagesScreenState extends State<MessagesScreen> {
     final client = Supabase.instance.client;
     if (client.auth.currentUser == null) return const [];
     return SupabaseDirectChatSync(client).listConversations();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _toggleSearch() {
+    setState(() {
+      _searching = !_searching;
+      if (!_searching) {
+        _query = '';
+        _searchController.clear();
+      }
+    });
+  }
+
+  bool _matches(String name) {
+    final q = _query.trim().toLowerCase();
+    return q.isEmpty || name.toLowerCase().contains(q);
   }
 
   Future<void> _refresh() async {
@@ -63,26 +87,47 @@ class _MessagesScreenState extends State<MessagesScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      'Messages',
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w700,
+                    child: _searching
+                        ? TextField(
+                            controller: _searchController,
+                            autofocus: true,
+                            textInputAction: TextInputAction.search,
+                            onChanged: (value) =>
+                                setState(() => _query = value),
+                            decoration: const InputDecoration(
+                              hintText: 'Search chats by name',
+                              prefixIcon: Icon(Icons.search),
+                            ),
+                          )
+                        : Text(
+                            'Messages',
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w700,
+                              color: palette.ink,
+                            ),
+                          ),
+                  ),
+                  const SizedBox(width: VanamSpacing.sm),
+                  InkResponse(
+                    onTap: _toggleSearch,
+                    radius: 24,
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: palette.surfaceCard,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(color: palette.shadow, blurRadius: 6),
+                        ],
+                      ),
+                      child: Icon(
+                        _searching ? Icons.close : Icons.search,
                         color: palette.ink,
+                        size: 20,
                       ),
                     ),
-                  ),
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: palette.surfaceCard,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(color: palette.shadow, blurRadius: 6),
-                      ],
-                    ),
-                    child: Icon(Icons.search, color: palette.ink, size: 20),
                   ),
                   const SizedBox(width: VanamSpacing.xs),
                   const FeedbackIconButton(screen: 'Messages'),
@@ -104,13 +149,26 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 child: FutureBuilder<List<DirectConversation>>(
                   future: _directConversationsFuture,
                   builder: (context, snapshot) {
-                    final directConversations = snapshot.data ?? const [];
+                    final allDirect = snapshot.data ?? const [];
+                    final directConversations = [
+                      for (final c in allDirect)
+                        if (_matches(c.otherDisplayName)) c,
+                    ];
+                    final groupTiles = [
+                      for (final c in mockConversations)
+                        if (_matches(c.name)) c,
+                    ];
+                    final noResults =
+                        _query.trim().isNotEmpty &&
+                        groupTiles.isEmpty &&
+                        directConversations.isEmpty &&
+                        snapshot.connectionState != ConnectionState.waiting;
                     final isLoading =
                         snapshot.connectionState == ConnectionState.waiting;
 
                     return ListView(
                       children: [
-                        for (final conversation in mockConversations)
+                        for (final conversation in groupTiles)
                           RepaintBoundary(
                             child: ConversationTile(
                               conversation: conversation,
@@ -137,6 +195,18 @@ class _MessagesScreenState extends State<MessagesScreen> {
                               style: TextStyle(color: palette.inkMuted),
                             ),
                           )
+                        else if (noResults)
+                          Padding(
+                            padding: const EdgeInsets.all(VanamSpacing.lg),
+                            child: Text(
+                              'No chats match "${_query.trim()}".',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: palette.inkMuted),
+                            ),
+                          )
+                        else if (_query.trim().isNotEmpty &&
+                            directConversations.isEmpty)
+                          const SizedBox.shrink()
                         else if (directConversations.isEmpty)
                           Padding(
                             padding: const EdgeInsets.all(VanamSpacing.lg),
@@ -186,7 +256,7 @@ class _EncryptedNotice extends StatelessWidget {
           const SizedBox(width: VanamSpacing.sm),
           Expanded(
             child: Text(
-              'Messages preview. V1 will use one encrypted family group.',
+              'Your chats are end-to-end encrypted. Only family members can read them.',
               style: TextStyle(color: palette.brandStrong, fontSize: 13),
             ),
           ),

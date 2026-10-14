@@ -52,6 +52,10 @@ class _HomeScreenState extends State<HomeScreen> {
       widget._notificationRepository ?? inAppNotificationService;
   late final StoryRepository _storyRepository =
       widget._storyRepository ?? SupabaseStoryRepository(Supabase.instance.client);
+  final _searchController = TextEditingController();
+  bool _searching = false;
+  String _query = '';
+
   late Future<List<Post>> _posts = _repository.fetchPosts();
   late Future<int> _unreadNotifications = _notificationRepository.unreadCount();
   late Future<List<StoryGroup>> _storyGroups =
@@ -59,6 +63,35 @@ class _HomeScreenState extends State<HomeScreen> {
   final _storyPicker = ImagePicker();
 
   String? get _currentUserId => Supabase.instance.client.auth.currentUser?.id;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _toggleSearch() {
+    setState(() {
+      _searching = !_searching;
+      if (!_searching) {
+        _query = '';
+        _searchController.clear();
+      }
+    });
+  }
+
+  /// Family posts whose caption or author name contains the search text.
+  List<Post> _filterPosts(List<Post> posts) {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return posts;
+    return posts
+        .where(
+          (p) =>
+              p.caption.toLowerCase().contains(q) ||
+              p.authorName.toLowerCase().contains(q),
+        )
+        .toList();
+  }
 
   Future<void> _refresh() async {
     setState(() {
@@ -208,7 +241,37 @@ class _HomeScreenState extends State<HomeScreen> {
             _HomeAppBar(
               unreadNotifications: _unreadNotifications,
               onOpenNotifications: _openNotifications,
+              searching: _searching,
+              onSearch: _toggleSearch,
             ),
+            if (_searching)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  VanamSpacing.md,
+                  0,
+                  VanamSpacing.md,
+                  VanamSpacing.sm,
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  textInputAction: TextInputAction.search,
+                  onChanged: (value) => setState(() => _query = value),
+                  decoration: InputDecoration(
+                    hintText: 'Search family posts or names',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _query.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () => setState(() {
+                              _query = '';
+                              _searchController.clear();
+                            }),
+                          ),
+                  ),
+                ),
+              ),
             Divider(height: 1, color: palette.line),
             Expanded(
               // Was a plain ListView with every post's PostCard built
@@ -220,6 +283,7 @@ class _HomeScreenState extends State<HomeScreen> {
               // post lazily, matching ListView.builder's behavior.
               child: CustomScrollView(
                 slivers: [
+                  if (!_searching)
                   SliverPadding(
                     padding: const EdgeInsets.all(VanamSpacing.md),
                     sliver: SliverToBoxAdapter(
@@ -295,7 +359,23 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: _FeedError(onRetry: _refresh),
                         );
                       }
-                      final posts = snapshot.data ?? mockPosts;
+                      final allPosts = snapshot.data ?? mockPosts;
+                      final posts = _searching
+                          ? _filterPosts(allPosts)
+                          : allPosts;
+                      if (_searching && _query.trim().isNotEmpty &&
+                          posts.isEmpty) {
+                        return SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.all(VanamSpacing.lg),
+                            child: Text(
+                              'No posts match "${_query.trim()}".',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: palette.inkMuted),
+                            ),
+                          ),
+                        );
+                      }
                       if (posts.isEmpty) {
                         return SliverToBoxAdapter(
                           child: _EmptyFamilyUpdates(onCreate: _showCreatePost),
@@ -666,10 +746,14 @@ class _HomeAppBar extends StatelessWidget {
   const _HomeAppBar({
     required this.unreadNotifications,
     required this.onOpenNotifications,
+    required this.searching,
+    required this.onSearch,
   });
 
   final Future<int> unreadNotifications;
   final VoidCallback onOpenNotifications;
+  final bool searching;
+  final VoidCallback onSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -702,8 +786,12 @@ class _HomeAppBar extends StatelessWidget {
           ),
           const Spacer(),
           IconButton(
-            onPressed: () {},
-            icon: Icon(Icons.search, color: palette.ink),
+            onPressed: onSearch,
+            icon: Icon(
+              searching ? Icons.close : Icons.search,
+              color: palette.ink,
+            ),
+            tooltip: searching ? 'Close search' : 'Search',
           ),
           const FeedbackIconButton(screen: 'Home'),
           FutureBuilder<int>(
