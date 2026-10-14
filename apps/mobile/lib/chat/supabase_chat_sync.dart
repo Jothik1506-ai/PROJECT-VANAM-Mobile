@@ -29,22 +29,59 @@ class SupabaseChatSync {
       'list_messages',
       params: {'p_group_id': groupId, 'p_message_limit': 100},
     );
-    final key = await _groupKey();
+    final typed = rows.whereType<Map<String, dynamic>>().toList();
+    var key = await _groupKey();
+    var messages = await _decodeRows(typed, key);
 
+    // A cached key that no longer decrypts usually means another member
+    // rotated the key (every wrap was replaced). Re-read our wrap once and
+    // retry before showing "Unable to decrypt" for the whole thread.
+    if (key != null && messages.any((m) => m.text == _undecryptable)) {
+      keySyncService.invalidate(scope: 'group', scopeId: groupId);
+      final fresh = await _groupKey();
+      if (fresh != null && !_sameKey(fresh, key)) {
+        key = fresh;
+        messages = await _decodeRows(typed, key);
+      }
+    }
+    return messages;
+  }
+
+  Future<List<ChatMessage>> _decodeRows(
+    List<Map<String, dynamic>> rows,
+    Uint8List? key,
+  ) async {
     final messages = <ChatMessage>[];
-    for (final row in rows.whereType<Map<String, dynamic>>()) {
+    for (final row in rows) {
       messages.add(await _messageFromRpcRow(row, key));
     }
     return messages;
+  }
+
+  static const _undecryptable = '🔒 Unable to decrypt this message';
+
+  static bool _sameKey(Uint8List a, Uint8List b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  /// Explicit, user-confirmed recovery for a chat nobody can unlock: issues
+  /// a new key and re-seals it for every member. Older messages stay
+  /// unreadable. Never called automatically — doing so on a plain "key not
+  /// here yet" wiped every other member's working key.
+  Future<void> resetEncryption({String groupId = 'family-group'}) async {
+    await keySyncService.rotateScopeKey(scope: 'group', scopeId: groupId);
   }
 
   Future<ChatMessage> sendMessage({
     required String text,
     String groupId = 'family-group',
   }) async {
-    final key =
-        await _groupKey() ??
-        await keySyncService.rotateScopeKey(scope: 'group', scopeId: groupId);
+    final key = await _groupKey();
+    if (key == null) throw StateError('Encryption key not ready');
     final ciphertext = await _e2ee.encryptMessage(
       plaintext: text,
       symmetricKey: key,
@@ -129,6 +166,6 @@ class SupabaseChatSync {
       ciphertextBase64: base64Body,
       symmetricKey: key,
     );
-    return plaintext ?? '🔒 Unable to decrypt this message';
+    return plaintext ?? _undecryptable;
   }
 }

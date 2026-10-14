@@ -44,6 +44,14 @@ class KeySyncService {
 
   String _cacheKey(String scope, String scopeId) => '$scope:$scopeId';
 
+  /// Drops the in-memory copy of a scope key so the next [getScopeKey]
+  /// re-reads this device's wrap from the server. Needed because another
+  /// member rotating the key replaces every wrap, while this device would
+  /// otherwise keep decrypting with its old cached key indefinitely.
+  void invalidate({required String scope, required String scopeId}) {
+    _cache.remove(_cacheKey(scope, scopeId));
+  }
+
   /// Uploads this device's public key to profiles.public_key if it isn't
   /// already there — the prerequisite for anyone to ever seal a key for
   /// this member. Safe to call on every app start; it's a no-op once set.

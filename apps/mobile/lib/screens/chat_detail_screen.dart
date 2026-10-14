@@ -234,13 +234,22 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: encryptionSyncing
+              ? const Duration(seconds: 10)
+              : const Duration(seconds: 4),
           content: Text(
             encryptionSyncing
-                ? "Encryption is syncing — this finishes on its own within "
-                      'a minute or so of them opening Vanam (any screen, '
-                      "not just this chat). Try again shortly."
+                ? "This chat's encryption key hasn't reached this phone yet. "
+                      'It usually fixes itself once another member opens '
+                      "Vanam. If it stays stuck, reset encryption."
                 : 'Could not send. Check connection and try again.',
           ),
+          action: encryptionSyncing
+              ? SnackBarAction(
+                  label: 'Reset',
+                  onPressed: _confirmResetEncryption,
+                )
+              : null,
         ),
       );
       return;
@@ -254,6 +263,53 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         _scrollController.position.maxScrollExtent,
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
+      );
+    }
+  }
+
+  Future<void> _confirmResetEncryption() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset encryption?'),
+        content: const Text(
+          'This creates a new encryption key for this chat and shares it '
+          'with its members. Messages sent before the reset stay unreadable. '
+          'Only do this if the chat has been stuck for a while.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      if (widget.mode == ChatDetailMode.familyGroup) {
+        final sync = _familySync ?? SupabaseChatSync(Supabase.instance.client);
+        await sync.resetEncryption(groupId: widget._controller!.groupId);
+        await widget._controller!.refreshFromRemote();
+      } else {
+        final sync = _directSync;
+        if (sync == null) return;
+        await sync.resetEncryption(widget.conversationId!);
+        _messages.value = await sync.fetchMessages(
+          conversationId: widget.conversationId!,
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not reset encryption. Try again shortly.'),
+        ),
       );
     }
   }

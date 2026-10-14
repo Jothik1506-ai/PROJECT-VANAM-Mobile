@@ -43,13 +43,54 @@ class SupabaseDirectChatSync {
       'list_direct_messages',
       params: {'p_conversation_id': conversationId, 'p_message_limit': 100},
     );
-    final key = await _conversationKey(conversationId);
+    final typed = rows.whereType<Map<String, dynamic>>().toList();
+    var key = await _conversationKey(conversationId);
+    var messages = await _decodeRows(typed, key);
 
+    // A cached key that no longer decrypts usually means the other member
+    // rotated the key (every wrap was replaced). Re-read our wrap once and
+    // retry before showing "Unable to decrypt" for the whole thread.
+    if (key != null && messages.any((m) => m.text == _undecryptable)) {
+      keySyncService.invalidate(scope: 'direct', scopeId: conversationId);
+      final fresh = await _conversationKey(conversationId);
+      if (fresh != null && !_sameKey(fresh, key)) {
+        key = fresh;
+        messages = await _decodeRows(typed, key);
+      }
+    }
+    return messages;
+  }
+
+  Future<List<ChatMessage>> _decodeRows(
+    List<Map<String, dynamic>> rows,
+    Uint8List? key,
+  ) async {
     final messages = <ChatMessage>[];
-    for (final row in rows.whereType<Map<String, dynamic>>()) {
+    for (final row in rows) {
       messages.add(await _messageFromRpcRow(row, key));
     }
     return messages;
+  }
+
+  static const _undecryptable = '🔒 Unable to decrypt this message';
+
+  static bool _sameKey(Uint8List a, Uint8List b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  /// Explicit, user-confirmed recovery for a conversation nobody can
+  /// unlock: issues a new key and re-seals it for both participants. Older
+  /// messages stay unreadable. Never called automatically — doing so on a
+  /// plain "key not here yet" wiped the other member's working key.
+  Future<void> resetEncryption(String conversationId) async {
+    await keySyncService.rotateScopeKey(
+      scope: 'direct',
+      scopeId: conversationId,
+    );
   }
 
   /// Marks every message from the other participant in this conversation
@@ -67,12 +108,8 @@ class SupabaseDirectChatSync {
     required String conversationId,
     required String text,
   }) async {
-    final key =
-        await _conversationKey(conversationId) ??
-        await keySyncService.rotateScopeKey(
-          scope: 'direct',
-          scopeId: conversationId,
-        );
+    final key = await _conversationKey(conversationId);
+    if (key == null) throw StateError('Encryption key not ready');
     final ciphertext = await _e2ee.encryptMessage(
       plaintext: text,
       symmetricKey: key,
@@ -140,7 +177,7 @@ class SupabaseDirectChatSync {
                 ciphertextBase64: rawText,
                 symmetricKey: key,
               ) ??
-              '🔒 Unable to decrypt this message');
+              _undecryptable);
 
     return ChatMessage(
       id: json['id'] as String? ?? '',
