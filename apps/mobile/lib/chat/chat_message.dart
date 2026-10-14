@@ -8,6 +8,7 @@ class ChatMessage {
     this.isMine = false,
     this.kind = ChatMessageKind.user,
     this.readAt,
+    this.pending = false,
   });
 
   final String id;
@@ -21,6 +22,10 @@ class ChatMessage {
   /// Null means "not read yet" (family group messages never set this;
   /// there's no per-message N-way read receipt in this app).
   final DateTime? readAt;
+
+  /// True while a just-typed message is still being encrypted and uploaded.
+  /// Shown immediately in the thread with a clock icon, never persisted.
+  final bool pending;
 
   /// Whether this device's user sent it. Synced messages derive this from
   /// Supabase auth.uid(); local test messages can still override it.

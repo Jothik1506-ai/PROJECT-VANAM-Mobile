@@ -66,6 +66,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       ? widget._controller!
       : ValueNotifier<List<ChatMessage>>(const []);
 
+  /// Messages typed but not yet confirmed by the server. Kept apart from
+  /// [_messages] so a realtime refresh can't wipe them mid-send.
+  final ValueNotifier<List<ChatMessage>> _pending =
+      ValueNotifier<List<ChatMessage>>(const []);
+
   SupabaseChatSync? _familySync;
   SupabaseDirectChatSync? _directSync;
   RealtimeChannel? _messagesChannel;
@@ -114,6 +119,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     if (widget.mode == ChatDetailMode.direct) {
       _messages.dispose();
     }
+    _pending.dispose();
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -207,7 +213,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final text = _textController.text;
     if (text.trim().isEmpty) return;
 
+    // Show the message right away; encryption + the network round trip
+    // finish in the background and the confirmed message replaces it.
+    final pendingMessage = ChatMessage(
+      id: 'pending-${DateTime.now().microsecondsSinceEpoch}',
+      senderName: profileController.value.displayName,
+      text: text.trim(),
+      sentAt: DateTime.now(),
+      isMine: true,
+      pending: true,
+    );
+    _pending.value = [..._pending.value, pendingMessage];
     _textController.clear();
+    _scrollToEnd();
+
     try {
       if (widget.mode == ChatDetailMode.familyGroup) {
         await widget._controller!.sendLocalMessage(
@@ -223,12 +242,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           conversationId: widget.conversationId!,
           text: text,
         );
-        _messages.value = [..._messages.value, message]
-          ..sort((a, b) => a.sentAt.compareTo(b.sentAt));
+        if (!_disposed) {
+          final next = _messages.value.where((m) => m.id != message.id).toList()
+            ..add(message)
+            ..sort((a, b) => a.sentAt.compareTo(b.sentAt));
+          _messages.value = next;
+        }
       }
+      _removePending(pendingMessage.id);
     } catch (error) {
-      _textController.text = text;
+      _removePending(pendingMessage.id);
       if (!mounted) return;
+      if (_textController.text.isEmpty) _textController.text = text;
       final encryptionSyncing = error.toString().contains(
         'Encryption key not ready',
       );
@@ -255,16 +280,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       return;
     }
 
-    if (!mounted) return;
+    _scrollToEnd();
+  }
+
+  void _removePending(String id) {
+    if (_disposed) return;
+    _pending.value = _pending.value.where((m) => m.id != id).toList();
+  }
+
+  Future<void> _scrollToEnd() async {
     // New message lands at the end of the list — follow it.
     await Future<void>.delayed(const Duration(milliseconds: 50));
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-      );
-    }
+    if (!mounted || !_scrollController.hasClients) return;
+    _scrollController.animateTo(
+      _scrollController.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+    );
   }
 
   Future<void> _confirmResetEncryption() async {
@@ -358,9 +390,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ),
             ),
           Expanded(
-            child: ValueListenableBuilder<List<ChatMessage>>(
-              valueListenable: _messages,
-              builder: (context, messages, _) {
+            child: ListenableBuilder(
+              listenable: Listenable.merge([_messages, _pending]),
+              builder: (context, _) {
+                final messages = [..._messages.value, ..._pending.value];
                 if (messages.isEmpty) {
                   return Center(
                     child: Text(
@@ -475,7 +508,10 @@ class _MessageBubble extends StatelessWidget {
                   _timeLabel(message.sentAt),
                   style: TextStyle(fontSize: 10, color: palette.inkMuted),
                 ),
-                if (showReadReceipt && message.isMine) ...[
+                if (message.pending) ...[
+                  const SizedBox(width: 3),
+                  Icon(Icons.schedule, size: 13, color: palette.inkMuted),
+                ] else if (showReadReceipt && message.isMine) ...[
                   const SizedBox(width: 3),
                   Icon(
                     message.readAt != null ? Icons.done_all : Icons.done,
