@@ -151,7 +151,7 @@ class _ReelPageState extends State<_ReelPage> {
             ),
           ),
           placeholder: (context) => const ColoredBox(
-            color: Color(0xFF1A100A),
+            color: Color(0xFF101A10),
             child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,

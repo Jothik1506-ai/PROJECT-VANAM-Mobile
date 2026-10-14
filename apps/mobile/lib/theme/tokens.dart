@@ -6,16 +6,16 @@ import 'package:flutter/material.dart';
 class VanamColors {
   VanamColors._();
 
-  static const brand = Color(0xFFE25822); // saffron orange — festival theme
-  static const brandDark = Color(0xFFC4471B); // darker saffron
-  static const surface = Color(0xFFFFF7F2); // warm cream background
+  static const brand = Color(0xFF1F5D2E); // forest green — platform chrome
+  static const brandDark = Color(0xFF163F20);
+  static const surface = Color(0xFFFAF6EC); // cream background
   static const surfaceCard = Color(0xFFFFFFFF);
-  static const ink = Color(0xFF2A211B); // primary text
-  static const inkMuted = Color(0xFF74695F); // secondary text
-  static const line = Color(0xFFEBD9CC); // borders, dividers
+  static const ink = Color(0xFF20241F); // primary text
+  static const inkMuted = Color(0xFF6B7268); // secondary text
+  static const line = Color(0xFFE3DECD); // borders, dividers
   static const danger = Color(0xFFB3261E); // destructive actions only
   static const avatarPalette = [
-    Color(0xFF8A2F3B),
+    Color(0xFF1F5D2E),
     Color(0xFF7B3F2A),
     Color(0xFF4B6F8F),
     Color(0xFF7A5C1F),
@@ -86,24 +86,24 @@ class VanamPalette extends ThemeExtension<VanamPalette> {
     inkMuted: VanamColors.inkMuted,
     line: VanamColors.line,
     danger: VanamColors.danger,
-    noticeSurface: Color(0xFFFFEBDD),
-    noticeBorder: Color(0xFFF3CFB4),
-    memoryGradient: [Color(0xFFFFE0CC), Color(0xFFFFF1D2)],
+    noticeSurface: Color(0xFFEAF2E8),
+    noticeBorder: Color(0xFFCFE0CE),
+    memoryGradient: [Color(0xFFDDEAD7), Color(0xFFFFF1D2)],
     shadow: Color(0x14000000),
   );
 
   static const dark = VanamPalette(
-    brand: Color(0xFFF37544),
-    brandStrong: Color(0xFFFF9E77),
-    surface: Color(0xFF16110E),
-    surfaceCard: Color(0xFF211915),
-    ink: Color(0xFFF5EFE8),
-    inkMuted: Color(0xFFC9BCB0),
-    line: Color(0xFF42332B),
+    brand: Color(0xFF8DCB91),
+    brandStrong: Color(0xFFE0F1DF),
+    surface: Color(0xFF10150F),
+    surfaceCard: Color(0xFF182117),
+    ink: Color(0xFFF2F0E8),
+    inkMuted: Color(0xFFB9C2B3),
+    line: Color(0xFF344032),
     danger: Color(0xFFFFB4AB),
-    noticeSurface: Color(0xFF38241A),
-    noticeBorder: Color(0xFF6B4531),
-    memoryGradient: [Color(0xFF4A2A18), Color(0xFF4B3F22)],
+    noticeSurface: Color(0xFF1F3320),
+    noticeBorder: Color(0xFF456349),
+    memoryGradient: [Color(0xFF243C24), Color(0xFF4B3F22)],
     shadow: Color(0x66000000),
   );
 
@@ -192,13 +192,8 @@ ThemeData buildVanamTheme({Brightness brightness = Brightness.light}) {
       ),
       bodyMedium: TextStyle(color: palette.inkMuted, fontSize: 14),
     ),
-    // Without this, bottom sheets (Create Post, global actions, etc.) fell
-    // back to Material 3's auto-generated tonal surface tint, which picks
-    // up a warm cast from the saffron seed color that doesn't quite match
-    // the app's own hand-picked surface/card tokens used by everything
-    // inside the sheet (the caption field, buttons) — a subtle but visible
-    // mismatch. Pinning it to the same token as the rest of the app fixes
-    // that seam.
+    // Pin bottom sheets to the app's own surface token instead of Material 3's
+    // auto-generated tonal tint, which didn't match the sheet contents.
     bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: palette.surface,
       surfaceTintColor: Colors.transparent,
