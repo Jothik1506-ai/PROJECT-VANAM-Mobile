@@ -55,7 +55,7 @@ Chat List → Chat Detail → Media Viewer
 
 **Login screen (approved visual direction, 2026-08-17):** cream background,
 circular logo mark centered near top, "Welcome to Vanam" headline (bold),
-"Your family, always connected" subtext, forest-green (`#1f5d2e`) full-width
+"Your family, always connected" subtext, saffron-orange (`#E25822`) full-width
 rounded button. This visual language is locked. **Fields differ from the
 original mockup** — that version showed mobile+password, Google login, OTP
 login, and Sign Up, which is an open-registration pattern and conflicts with

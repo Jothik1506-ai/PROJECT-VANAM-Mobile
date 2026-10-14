@@ -10,12 +10,12 @@ class VanamColors {
   static const brandDark = Color(0xFFC4471B); // darker saffron
   static const surface = Color(0xFFFFF7F2); // warm cream background
   static const surfaceCard = Color(0xFFFFFFFF);
-  static const ink = Color(0xFF20241F); // primary text
-  static const inkMuted = Color(0xFF6B7268); // secondary text
-  static const line = Color(0xFFE3DECD); // borders, dividers
+  static const ink = Color(0xFF2A211B); // primary text
+  static const inkMuted = Color(0xFF74695F); // secondary text
+  static const line = Color(0xFFEBD9CC); // borders, dividers
   static const danger = Color(0xFFB3261E); // destructive actions only
   static const avatarPalette = [
-    Color(0xFF1F5D2E),
+    Color(0xFF8A2F3B),
     Color(0xFF7B3F2A),
     Color(0xFF4B6F8F),
     Color(0xFF7A5C1F),
@@ -86,24 +86,24 @@ class VanamPalette extends ThemeExtension<VanamPalette> {
     inkMuted: VanamColors.inkMuted,
     line: VanamColors.line,
     danger: VanamColors.danger,
-    noticeSurface: Color(0xFFEAF2E8),
-    noticeBorder: Color(0xFFCFE0CE),
-    memoryGradient: [Color(0xFFDDEAD7), Color(0xFFFFF1D2)],
+    noticeSurface: Color(0xFFFFEBDD),
+    noticeBorder: Color(0xFFF3CFB4),
+    memoryGradient: [Color(0xFFFFE0CC), Color(0xFFFFF1D2)],
     shadow: Color(0x14000000),
   );
 
   static const dark = VanamPalette(
     brand: Color(0xFFF37544),
     brandStrong: Color(0xFFFF9E77),
-    surface: Color(0xFF10150F),
-    surfaceCard: Color(0xFF182117),
-    ink: Color(0xFFF2F0E8),
-    inkMuted: Color(0xFFB9C2B3),
-    line: Color(0xFF344032),
+    surface: Color(0xFF16110E),
+    surfaceCard: Color(0xFF211915),
+    ink: Color(0xFFF5EFE8),
+    inkMuted: Color(0xFFC9BCB0),
+    line: Color(0xFF42332B),
     danger: Color(0xFFFFB4AB),
-    noticeSurface: Color(0xFF1F3320),
-    noticeBorder: Color(0xFF456349),
-    memoryGradient: [Color(0xFF243C24), Color(0xFF4B3F22)],
+    noticeSurface: Color(0xFF38241A),
+    noticeBorder: Color(0xFF6B4531),
+    memoryGradient: [Color(0xFF4A2A18), Color(0xFF4B3F22)],
     shadow: Color(0x66000000),
   );
 
