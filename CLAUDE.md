@@ -9,9 +9,22 @@
   owner asks for one.
 - Keep the whole UI on the green palette (notices, gradients, dark mode).
 
+## Build & test (run from `apps/mobile`)
+- `flutter pub get`
+- `flutter analyze` must be clean before every release.
+- `flutter test` must pass before every release.
+- Release scripts (PowerShell, need `android/key.properties` and
+  `WORK_MANAGER_ACTIVITY_SECRET`): `tool/release.ps1` builds the signed APK
+  and manifest; `tool/play-release.ps1` builds the Play bundle.
+
 ## Releases
 - Current version: `1.0.0+28` in `apps/mobile/pubspec.yaml`. Bump the build
-  number for every release; the OTA manifest lives in `vanam-ota-updates/`.
+  number for every release; the OTA manifest lives in `vanam-ota-updates/` and must be updated
+  with the new APK's URL and SHA-256 (see `docs/OTA-RELEASES.md`).
+- Backend is Supabase (`supabase/migrations/`); apply new migrations before
+  shipping a build that depends on them.
+- `ARCHITECTURE.md` starts with a "Current state" section; keep it in sync
+  when features land.
 
 ## Chat encryption
 - Never auto-rotate a chat key on send; rotation deletes every member's key

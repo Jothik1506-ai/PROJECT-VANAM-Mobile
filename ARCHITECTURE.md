@@ -4,6 +4,30 @@ Owner: Claude Code (architecture, acceptance criteria) → Codex (implementation
 Companion repo: `PROJECT-VANAM/Vanam web` (public web platform, festivals/content).
 This repo is standalone: private family app, not part of the public build.
 
+## Current state (build 28, Oct 2026) — read this first
+
+The sections below are the **original V1 plan** and are kept for history. The
+app has since grown well past it. Where they disagree, this section wins.
+
+| Area | Original plan | What is actually built |
+|---|---|---|
+| Backend | Cloudflare Workers + D1 + Durable Objects | **Supabase** (Postgres, RPCs, Realtime, Storage, Edge Functions). See `supabase/migrations/`. |
+| Login | Invite code + one-time PIN | Admin-issued invite (code or QR), then **username + password**, with a one-time recovery code. |
+| Chat | Single family group, text only | Family group **and direct (1:1) chats**, E2EE, read receipts on direct chats, instant "pending" display and tap-to-retry for failed sends. |
+| Tabs | None in V1 | Bottom navigation: Reels / Messages / Home / Profile. |
+| Home | Deferred | Family feed: photo and video posts (50MB / 60s cap, tap to play), reactions, comments, share, and 24-hour photo Stories. |
+| Notifications | Deferred | Firebase push notifications and an in-app notifications list. |
+| Distribution | Play Internal Testing | Google Play **and** a self-hosted signed APK with an in-app updater (`docs/OTA-RELEASES.md`, `vanam-ota-updates/`). |
+| Theme | Forest green | Forest green is the default (see `CLAUDE.md`). Seasonal themes only on request. |
+
+Encryption (Section 6) is still the design: each chat scope has one symmetric
+key, sealed per member with X25519 and stored in `key_wraps`. A key is only
+reset by an explicit, confirmed "Reset" in the chat screen, never
+automatically on send, because a reset deletes every member's copy.
+
+Still deferred: calling, real video Reels, video Stories, iOS, message search,
+client-side video compression.
+
 **Revision note (2026-08-17):** Scope pulled back to an Android-only V1 chat
 app. The earlier four-pillar plan (Home/Reels/Messages+Calling/Profile) is
 **not** V1 — it's preserved in git history (see prior commit on this file)
