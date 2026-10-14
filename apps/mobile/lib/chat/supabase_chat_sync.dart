@@ -58,7 +58,7 @@ class SupabaseChatSync {
     return messages;
   }
 
-  static const _undecryptable = '🔒 Unable to decrypt this message';
+  static const _undecryptable = ChatMessage.undecryptableText;
 
   static bool _sameKey(Uint8List a, Uint8List b) {
     if (a.length != b.length) return false;
@@ -161,7 +161,7 @@ class SupabaseChatSync {
         return '';
       }
     }
-    if (key == null) return '🔒 Waiting for encryption key…';
+    if (key == null) return ChatMessage.waitingForKeyText;
     final plaintext = await E2eeService.instance.decryptMessage(
       ciphertextBase64: base64Body,
       symmetricKey: key,

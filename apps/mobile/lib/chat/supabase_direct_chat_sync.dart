@@ -72,7 +72,7 @@ class SupabaseDirectChatSync {
     return messages;
   }
 
-  static const _undecryptable = '🔒 Unable to decrypt this message';
+  static const _undecryptable = ChatMessage.undecryptableText;
 
   static bool _sameKey(Uint8List a, Uint8List b) {
     if (a.length != b.length) return false;
@@ -172,7 +172,7 @@ class SupabaseDirectChatSync {
     final senderId = json['sender_id'] as String? ?? '';
     final rawText = json['message_text'] as String? ?? '';
     final text = key == null
-        ? '🔒 Waiting for encryption key…'
+        ? ChatMessage.waitingForKeyText
         : (await _e2ee.decryptMessage(
                 ciphertextBase64: rawText,
                 symmetricKey: key,

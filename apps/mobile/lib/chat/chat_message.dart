@@ -9,6 +9,7 @@ class ChatMessage {
     this.kind = ChatMessageKind.user,
     this.readAt,
     this.pending = false,
+    this.failed = false,
   });
 
   final String id;
@@ -26,6 +27,33 @@ class ChatMessage {
   /// True while a just-typed message is still being encrypted and uploaded.
   /// Shown immediately in the thread with a clock icon, never persisted.
   final bool pending;
+
+  /// True when sending this message failed. It stays in the thread with a
+  /// "tap to retry" prompt instead of silently disappearing. Never persisted.
+  final bool failed;
+
+  /// Shown in place of a message this device has no key for / can't decrypt.
+  static const waitingForKeyText = '🔒 Waiting for encryption key…';
+  static const undecryptableText =
+      '🔒 This message was sent with an earlier encryption key and can\'t be read';
+
+  bool get isUnavailable =>
+      text == waitingForKeyText || text == undecryptableText;
+
+  ChatMessage copyWith({bool? pending, bool? failed}) {
+    return ChatMessage(
+      id: id,
+      senderId: senderId,
+      senderName: senderName,
+      text: text,
+      sentAt: sentAt,
+      isMine: isMine,
+      kind: kind,
+      readAt: readAt,
+      pending: pending ?? this.pending,
+      failed: failed ?? this.failed,
+    );
+  }
 
   /// Whether this device's user sent it. Synced messages derive this from
   /// Supabase auth.uid(); local test messages can still override it.

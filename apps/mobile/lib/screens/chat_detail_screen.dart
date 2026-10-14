@@ -210,15 +210,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   Future<void> _send() async {
-    final text = _textController.text;
-    if (text.trim().isEmpty) return;
+    final text = _textController.text.trim();
+    if (text.isEmpty) return;
 
     // Show the message right away; encryption + the network round trip
     // finish in the background and the confirmed message replaces it.
     final pendingMessage = ChatMessage(
       id: 'pending-${DateTime.now().microsecondsSinceEpoch}',
       senderName: profileController.value.displayName,
-      text: text.trim(),
+      text: text,
       sentAt: DateTime.now(),
       isMine: true,
       pending: true,
@@ -226,7 +226,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _pending.value = [..._pending.value, pendingMessage];
     _textController.clear();
     _scrollToEnd();
+    await _deliver(pendingMessage);
+    _scrollToEnd();
+  }
 
+  /// Tap on a failed message: try sending it again in place.
+  Future<void> _retry(ChatMessage failed) async {
+    _replacePending(failed.id, failed.copyWith(pending: true, failed: false));
+    await _deliver(failed);
+  }
+
+  void _discard(ChatMessage failed) => _removePending(failed.id);
+
+  Future<void> _deliver(ChatMessage pendingMessage) async {
+    final text = pendingMessage.text;
     try {
       if (widget.mode == ChatDetailMode.familyGroup) {
         await widget._controller!.sendLocalMessage(
@@ -251,9 +264,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       }
       _removePending(pendingMessage.id);
     } catch (error) {
-      _removePending(pendingMessage.id);
+      // Keep the message in the thread, marked "Not sent", so the user can
+      // tap to retry instead of retyping it.
+      _replacePending(
+        pendingMessage.id,
+        pendingMessage.copyWith(pending: false, failed: true),
+      );
       if (!mounted) return;
-      if (_textController.text.isEmpty) _textController.text = text;
       final encryptionSyncing = error.toString().contains(
         'Encryption key not ready',
       );
@@ -267,7 +284,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 ? "This chat's encryption key hasn't reached this phone yet. "
                       'It usually fixes itself once another member opens '
                       "Vanam. If it stays stuck, reset encryption."
-                : 'Could not send. Check connection and try again.',
+                : 'Could not send. Check connection and tap the message to retry.',
           ),
           action: encryptionSyncing
               ? SnackBarAction(
@@ -277,10 +294,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               : null,
         ),
       );
-      return;
     }
+  }
 
-    _scrollToEnd();
+  void _replacePending(String id, ChatMessage replacement) {
+    if (_disposed) return;
+    _pending.value = [
+      for (final m in _pending.value) m.id == id ? replacement : m,
+    ];
   }
 
   void _removePending(String id) {
@@ -415,6 +436,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           ? _SystemEventNotice(message: message)
                           : _MessageBubble(
                               message: message,
+                              onRetry: message.failed
+                                  ? () => _retry(message)
+                                  : null,
+                              onDiscard: message.failed
+                                  ? () => _discard(message)
+                                  : null,
                               showReadReceipt:
                                   widget.mode == ChatDetailMode.direct,
                             ),
@@ -438,7 +465,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 }
 
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.message, required this.showReadReceipt});
+  const _MessageBubble({
+    required this.message,
+    required this.showReadReceipt,
+    this.onRetry,
+    this.onDiscard,
+  });
+
+  /// Only set for a message that failed to send: tap retries, long-press
+  /// discards.
+  final VoidCallback? onRetry;
+  final VoidCallback? onDiscard;
 
   final ChatMessage message;
 
@@ -473,7 +510,10 @@ class _MessageBubble extends StatelessWidget {
                 ),
               ),
             ),
-          ConstrainedBox(
+          GestureDetector(
+            onTap: onRetry,
+            onLongPress: onDiscard,
+            child: ConstrainedBox(
             constraints: BoxConstraints(
               maxWidth: MediaQuery.sizeOf(context).width * 0.75,
             ),
@@ -496,8 +536,19 @@ class _MessageBubble extends StatelessWidget {
                 ),
                 border: message.isMine ? null : Border.all(color: palette.line),
               ),
-              child: Text(message.text, style: TextStyle(color: textColor)),
+              child: Text(
+                message.text,
+                style: TextStyle(
+                  color: message.isUnavailable && !message.isMine
+                      ? palette.inkMuted
+                      : textColor,
+                  fontStyle: message.isUnavailable
+                      ? FontStyle.italic
+                      : FontStyle.normal,
+                ),
+              ),
             ),
+          ),
           ),
           Padding(
             padding: const EdgeInsets.only(top: 2),
@@ -508,7 +559,14 @@ class _MessageBubble extends StatelessWidget {
                   _timeLabel(message.sentAt),
                   style: TextStyle(fontSize: 10, color: palette.inkMuted),
                 ),
-                if (message.pending) ...[
+                if (message.failed) ...[
+                  Icon(Icons.error_outline, size: 13, color: palette.danger),
+                  const SizedBox(width: 3),
+                  Text(
+                    'Not sent · tap to retry, hold to delete',
+                    style: TextStyle(fontSize: 10, color: palette.danger),
+                  ),
+                ] else if (message.pending) ...[
                   const SizedBox(width: 3),
                   Icon(Icons.schedule, size: 13, color: palette.inkMuted),
                 ] else if (showReadReceipt && message.isMine) ...[

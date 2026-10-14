@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../chat/supabase_direct_chat_sync.dart';
 import '../screens/chat_detail_screen.dart';
+import 'active_chat_tracker.dart';
 
 final vanamNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -9,11 +10,21 @@ class PushNavigation {
   PushNavigation._();
 
   static Future<void> openFromPayload(Map<String, dynamic> data) async {
-    final navigator = vanamNavigatorKey.currentState;
+    // A tap that cold-starts the app can arrive before the navigator exists
+    // (still on splash / sign-in); wait briefly instead of dropping it.
+    var navigator = vanamNavigatorKey.currentState;
+    for (var i = 0; navigator == null && i < 20; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      navigator = vanamNavigatorKey.currentState;
+    }
     if (navigator == null) return;
 
     final chatType = data['chat_type']?.toString();
     if (chatType == 'family') {
+      // Already looking at this chat: don't stack a duplicate screen.
+      if (activeChatTracker.isActive(ActiveChatTracker.familyGroupScope)) {
+        return;
+      }
       navigator.push(
         MaterialPageRoute(
           builder: (_) => ChatDetailScreen(groupName: 'Family Group'),
@@ -25,6 +36,11 @@ class PushNavigation {
     if (chatType == 'direct') {
       final conversationId = data['conversation_id']?.toString();
       if (conversationId == null || conversationId.isEmpty) return;
+      if (activeChatTracker.isActive(
+        ActiveChatTracker.directScope(conversationId),
+      )) {
+        return;
+      }
 
       var otherName = data['sender_name']?.toString() ?? 'Family Member';
       try {
