@@ -105,9 +105,7 @@ class UpdateService {
     }
 
     final dir = await getTemporaryDirectory();
-    final file = File(
-      '${dir.path}/vanam-${manifest.latestVersionCode}.apk',
-    );
+    final file = File('${dir.path}/vanam-${manifest.latestVersionCode}.apk');
     // A partial file from an interrupted earlier attempt would otherwise be
     // appended to and fail the checksum.
     if (await file.exists()) {

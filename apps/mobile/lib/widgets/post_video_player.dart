@@ -237,10 +237,8 @@ class _PostVideoPlayerState extends State<PostVideoPlayer> {
     setState(() => _showControls = true);
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => FullScreenVideoPage(
-          videoUrl: widget.videoUrl,
-          startAt: position,
-        ),
+        builder: (_) =>
+            FullScreenVideoPage(videoUrl: widget.videoUrl, startAt: position),
       ),
     );
   }
@@ -263,10 +261,7 @@ class _PostVideoPlayerState extends State<PostVideoPlayer> {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    const Color(0xFF2E1C14),
-                    const Color(0xFF18120F),
-                  ],
+                  colors: [const Color(0xFF2E1C14), const Color(0xFF18120F)],
                 ),
               ),
             ),
@@ -285,7 +280,11 @@ class _PostVideoPlayerState extends State<PostVideoPlayer> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.videocam_outlined, size: 14, color: Colors.white),
+                  const Icon(
+                    Icons.videocam_outlined,
+                    size: 14,
+                    color: Colors.white,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     'Family Video',
@@ -326,13 +325,20 @@ class _PostVideoPlayerState extends State<PostVideoPlayer> {
           if (_isInitializing)
             const SizedBox.square(
               dimension: 48,
-              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+              child: CircularProgressIndicator(
+                color: Colors.white,
+                strokeWidth: 3,
+              ),
             )
           else if (_hasError)
             Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.error_outline_rounded, color: palette.danger, size: 36),
+                Icon(
+                  Icons.error_outline_rounded,
+                  color: palette.danger,
+                  size: 36,
+                ),
                 const SizedBox(height: VanamSpacing.sm),
                 const Text(
                   'Could not play video',
@@ -446,8 +452,8 @@ class _PostVideoPlayerState extends State<PostVideoPlayer> {
               isFinished
                   ? Icons.replay_rounded
                   : (controller.value.isPlaying
-                      ? Icons.pause_circle_filled_rounded
-                      : Icons.play_circle_filled_rounded),
+                        ? Icons.pause_circle_filled_rounded
+                        : Icons.play_circle_filled_rounded),
               color: Colors.white,
             ),
           ),

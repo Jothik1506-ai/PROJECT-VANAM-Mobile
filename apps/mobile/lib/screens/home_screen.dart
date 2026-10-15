@@ -51,18 +51,27 @@ class _HomeScreenState extends State<HomeScreen> {
   late final NotificationRepository _notificationRepository =
       widget._notificationRepository ?? inAppNotificationService;
   late final StoryRepository _storyRepository =
-      widget._storyRepository ?? SupabaseStoryRepository(Supabase.instance.client);
+      widget._storyRepository ??
+      SupabaseStoryRepository(Supabase.instance.client);
   final _searchController = TextEditingController();
   bool _searching = false;
   String _query = '';
 
   late Future<List<Post>> _posts = _repository.fetchPosts();
   late Future<int> _unreadNotifications = _notificationRepository.unreadCount();
-  late Future<List<StoryGroup>> _storyGroups =
-      _storyRepository.fetchActiveStoryGroups();
+  late Future<List<StoryGroup>> _storyGroups = _storyRepository
+      .fetchActiveStoryGroups();
   final _storyPicker = ImagePicker();
 
   String? get _currentUserId => Supabase.instance.client.auth.currentUser?.id;
+
+  Future<void> _updatePosts(
+    List<Post> Function(List<Post> posts) update,
+  ) async {
+    final current = await _posts;
+    if (!mounted) return;
+    setState(() => _posts = Future.value(update(current)));
+  }
 
   @override
   void dispose() {
@@ -186,7 +195,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       await _repository.deletePost(post);
-      await _refresh();
+      await _updatePosts(
+        (posts) => posts.where((item) => item.id != post.id).toList(),
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -202,7 +213,18 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _toggleLike(Post post) async {
     try {
       await _repository.toggleLike(post);
-      await _refresh();
+      await _updatePosts(
+        (posts) => [
+          for (final item in posts)
+            if (item.id == post.id)
+              item.copyWith(
+                likedByMe: !item.likedByMe,
+                likeCount: item.likeCount + (item.likedByMe ? -1 : 1),
+              )
+            else
+              item,
+        ],
+      );
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -219,7 +241,14 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context) => _CommentsSheet(post: post, repository: _repository),
     );
     if (changed == true) {
-      await _refresh();
+      await _updatePosts(
+        (posts) => [
+          for (final item in posts)
+            item.id == post.id
+                ? item.copyWith(commentCount: item.commentCount + 1)
+                : item,
+        ],
+      );
     }
   }
 
@@ -284,63 +313,63 @@ class _HomeScreenState extends State<HomeScreen> {
               child: CustomScrollView(
                 slivers: [
                   if (!_searching)
-                  SliverPadding(
-                    padding: const EdgeInsets.all(VanamSpacing.md),
-                    sliver: SliverToBoxAdapter(
-                      child: Column(
-                        children: [
-                          SizedBox(
-                            height: 88,
-                            child: FutureBuilder<List<StoryGroup>>(
-                              future: _storyGroups,
-                              builder: (context, snapshot) {
-                                final groups = snapshot.data ?? const [];
-                                return ListView(
-                                  scrollDirection: Axis.horizontal,
-                                  children: [
-                                    AddMemberAvatar(onTap: _addStory),
-                                    for (
-                                      var i = 0;
-                                      i < groups.length;
-                                      i++
-                                    ) ...[
-                                      const SizedBox(width: VanamSpacing.md),
-                                      StoryAvatar(
-                                        name: groups[i].authorName,
-                                        hasStory: true,
-                                        hasUnseen: groups[i].hasUnseen,
-                                        onTap: () => _openStory(groups, i),
-                                      ),
+                    SliverPadding(
+                      padding: const EdgeInsets.all(VanamSpacing.md),
+                      sliver: SliverToBoxAdapter(
+                        child: Column(
+                          children: [
+                            SizedBox(
+                              height: 88,
+                              child: FutureBuilder<List<StoryGroup>>(
+                                future: _storyGroups,
+                                builder: (context, snapshot) {
+                                  final groups = snapshot.data ?? const [];
+                                  return ListView(
+                                    scrollDirection: Axis.horizontal,
+                                    children: [
+                                      AddMemberAvatar(onTap: _addStory),
+                                      for (
+                                        var i = 0;
+                                        i < groups.length;
+                                        i++
+                                      ) ...[
+                                        const SizedBox(width: VanamSpacing.md),
+                                        StoryAvatar(
+                                          name: groups[i].authorName,
+                                          hasStory: true,
+                                          hasUnseen: groups[i].hasUnseen,
+                                          onTap: () => _openStory(groups, i),
+                                        ),
+                                      ],
                                     ],
-                                  ],
-                                );
-                              },
+                                  );
+                                },
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: VanamSpacing.lg),
-                          const _SectionHeader(
-                            title: 'Web Page Updates',
-                            subtitle:
-                                'Latest VANAM web pages available for reading.',
-                          ),
-                          const SizedBox(height: VanamSpacing.md),
-                          const RotatingWebUpdateCard(updates: webUpdates),
-                          const SizedBox(height: VanamSpacing.md),
-                          _SectionHeader(
-                            title: 'Family Updates',
-                            subtitle:
-                                'Share photos, videos, and notes with the family.',
-                            action: IconButton.filled(
-                              onPressed: _showCreatePost,
-                              icon: const Icon(Icons.add),
-                              tooltip: 'Create post',
+                            const SizedBox(height: VanamSpacing.lg),
+                            const _SectionHeader(
+                              title: 'Web Page Updates',
+                              subtitle:
+                                  'Latest VANAM web pages available for reading.',
                             ),
-                          ),
-                          const SizedBox(height: VanamSpacing.md),
-                        ],
+                            const SizedBox(height: VanamSpacing.md),
+                            const RotatingWebUpdateCard(updates: webUpdates),
+                            const SizedBox(height: VanamSpacing.md),
+                            _SectionHeader(
+                              title: 'Family Updates',
+                              subtitle:
+                                  'Share photos, videos, and notes with the family.',
+                              action: IconButton.filled(
+                                onPressed: _showCreatePost,
+                                icon: const Icon(Icons.add),
+                                tooltip: 'Create post',
+                              ),
+                            ),
+                            const SizedBox(height: VanamSpacing.md),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
                   FutureBuilder<List<Post>>(
                     future: _posts,
                     builder: (context, snapshot) {
@@ -363,7 +392,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       final posts = _searching
                           ? _filterPosts(allPosts)
                           : allPosts;
-                      if (_searching && _query.trim().isNotEmpty &&
+                      if (_searching &&
+                          _query.trim().isNotEmpty &&
                           posts.isEmpty) {
                         return SliverToBoxAdapter(
                           child: Padding(
@@ -426,6 +456,7 @@ class _CommentsSheet extends StatefulWidget {
 
 class _CommentsSheetState extends State<_CommentsSheet> {
   final _controller = TextEditingController();
+  final _scrollController = ScrollController();
   late Future<List<PostComment>> _comments = widget.repository.fetchComments(
     widget.post,
   );
@@ -435,6 +466,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
   @override
   void dispose() {
     _controller.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -446,9 +478,19 @@ class _CommentsSheetState extends State<_CommentsSheet> {
         body: _controller.text,
       );
       _controller.clear();
+      final refreshed = widget.repository.fetchComments(widget.post);
       setState(() {
         _changed = true;
-        _comments = widget.repository.fetchComments(widget.post);
+        _comments = refreshed;
+      });
+      await refreshed;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scrollController.hasClients) return;
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
       });
     } catch (error) {
       if (!mounted) return;
@@ -492,6 +534,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                   icon: const Icon(Icons.close),
                   tooltip: 'Close comments',
                 ),
+                FeedbackIconButton(screen: 'Comments', itemId: widget.post.id),
               ],
             ),
             const SizedBox(height: VanamSpacing.md),
@@ -512,6 +555,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                     );
                   }
                   return ListView.separated(
+                    controller: _scrollController,
                     itemCount: comments.length,
                     separatorBuilder: (_, _) => Divider(color: palette.line),
                     itemBuilder: (context, index) {
@@ -695,6 +739,15 @@ class _InAppShareSheetState extends State<_InAppShareSheet> {
                 return const Padding(
                   padding: EdgeInsets.all(VanamSpacing.md),
                   child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (snapshot.hasError) {
+                return Padding(
+                  padding: const EdgeInsets.all(VanamSpacing.md),
+                  child: Text(
+                    'Could not load direct chats. Close and try again.',
+                    style: TextStyle(color: palette.danger),
+                  ),
                 );
               }
               if (conversations.isEmpty) {
@@ -1184,7 +1237,9 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
                           future: _video!.length(),
                           builder: (context, snapshot) {
                             final bytes = snapshot.data ?? 0;
-                            final mb = (bytes / (1024 * 1024)).toStringAsFixed(1);
+                            final mb = (bytes / (1024 * 1024)).toStringAsFixed(
+                              1,
+                            );
                             return Text(
                               'Video attached • ${mb}MB',
                               style: TextStyle(

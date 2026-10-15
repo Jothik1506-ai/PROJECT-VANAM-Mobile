@@ -9,6 +9,7 @@ class DirectConversation {
     required this.otherDisplayName,
     this.lastMessageText,
     this.lastMessageAt,
+    this.unreadCount = 0,
   });
 
   final String conversationId;
@@ -16,6 +17,7 @@ class DirectConversation {
   final String otherDisplayName;
   final String? lastMessageText;
   final DateTime? lastMessageAt;
+  final int unreadCount;
 
   factory DirectConversation.fromJson(Map<String, dynamic> json) {
     return DirectConversation(
@@ -27,6 +29,7 @@ class DirectConversation {
       lastMessageAt: DateTime.tryParse(
         json['last_message_at'] as String? ?? '',
       ),
+      unreadCount: json['unread_count'] as int? ?? 0,
     );
   }
 }

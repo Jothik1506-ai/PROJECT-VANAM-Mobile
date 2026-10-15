@@ -29,14 +29,48 @@ class E2eeService {
   final _hkdf = Hkdf(hmac: Hmac.sha256(), outputLength: 32);
 
   SimpleKeyPair? _cachedKeyPair;
+  String? _activeUserId;
+
+  void useAccount(String userId) {
+    if (_activeUserId == userId) return;
+    _activeUserId = userId;
+    _cachedKeyPair = null;
+  }
+
+  void clearSession() {
+    _activeUserId = null;
+    _cachedKeyPair = null;
+  }
 
   /// Loads this device's keypair from secure storage, generating and
   /// persisting a new one on first run. Idempotent — safe to call anytime.
   Future<SimpleKeyPair> ensureKeyPair() async {
+    final existing = await loadKeyPair();
+    if (existing != null) return existing;
+    return replaceKeyPair();
+  }
+
+  /// Loads the existing account key without silently creating a new identity.
+  Future<SimpleKeyPair?> loadKeyPair() async {
+    final userId = _activeUserId;
+    if (userId == null) {
+      throw StateError('No signed-in account for encryption');
+    }
     final cached = _cachedKeyPair;
     if (cached != null) return cached;
 
-    final storedSeed = await _storage.read(key: _privateKeyStorageKey);
+    final storageKey = '${_privateKeyStorageKey}_$userId';
+    var storedSeed = await _storage.read(key: storageKey);
+    if (storedSeed == null) {
+      // One-time migration from builds that shared a single device key
+      // across accounts. The currently authenticated account owns that
+      // legacy key; remove the unscoped copy so a later account cannot use it.
+      storedSeed = await _storage.read(key: _privateKeyStorageKey);
+      if (storedSeed != null) {
+        await _storage.write(key: storageKey, value: storedSeed);
+        await _storage.delete(key: _privateKeyStorageKey);
+      }
+    }
     if (storedSeed != null) {
       final seedBytes = base64Decode(storedSeed);
       final keyPair = await _x25519.newKeyPairFromSeed(seedBytes);
@@ -44,12 +78,19 @@ class E2eeService {
       return keyPair;
     }
 
+    return null;
+  }
+
+  /// Replaces the account key after an explicit, confirmed encryption reset.
+  Future<SimpleKeyPair> replaceKeyPair() async {
+    final userId = _activeUserId;
+    if (userId == null) {
+      throw StateError('No signed-in account for encryption');
+    }
+    final storageKey = '${_privateKeyStorageKey}_$userId';
     final keyPair = await _x25519.newKeyPair();
     final seedBytes = await keyPair.extractPrivateKeyBytes();
-    await _storage.write(
-      key: _privateKeyStorageKey,
-      value: base64Encode(seedBytes),
-    );
+    await _storage.write(key: storageKey, value: base64Encode(seedBytes));
     _cachedKeyPair = keyPair;
     return keyPair;
   }

@@ -1,5 +1,9 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../auth/auth_service.dart';
 import '../chat/supabase_direct_chat_sync.dart';
 import '../screens/chat_detail_screen.dart';
 import 'active_chat_tracker.dart';
@@ -10,6 +14,7 @@ class PushNavigation {
   PushNavigation._();
 
   static Future<void> openFromPayload(Map<String, dynamic> data) async {
+    if (Supabase.instance.client.auth.currentUser == null) return;
     // A tap that cold-starts the app can arrive before the navigator exists
     // (still on splash / sign-in); wait briefly instead of dropping it.
     var navigator = vanamNavigatorKey.currentState;
@@ -25,9 +30,17 @@ class PushNavigation {
       if (activeChatTracker.isActive(ActiveChatTracker.familyGroupScope)) {
         return;
       }
+      var isAdmin = false;
+      try {
+        final profile = await authService.fetchMyProfile().timeout(
+          const Duration(seconds: 8),
+        );
+        isAdmin = profile?.isAdmin ?? false;
+      } catch (_) {}
       navigator.push(
         MaterialPageRoute(
-          builder: (_) => ChatDetailScreen(groupName: 'Family Group'),
+          builder: (_) =>
+              ChatDetailScreen(groupName: 'Family Group', isAdmin: isAdmin),
         ),
       );
       return;
@@ -44,7 +57,9 @@ class PushNavigation {
 
       var otherName = data['sender_name']?.toString() ?? 'Family Member';
       try {
-        final conversations = await supabaseDirectChatSync.listConversations();
+        final conversations = await supabaseDirectChatSync
+            .listConversations()
+            .timeout(const Duration(seconds: 8));
         final match = conversations.where(
           (c) => c.conversationId == conversationId,
         );

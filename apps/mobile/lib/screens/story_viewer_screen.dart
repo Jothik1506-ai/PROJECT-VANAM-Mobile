@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../home/story_repository.dart';
 import '../media/vanam_cached_image.dart';
 import '../models/story.dart';
+import '../widgets/feedback_button.dart';
 
 /// Full-screen WhatsApp-style story viewer. [initialGroupIndex] is which
 /// person's stories to open on; tapping the right/left third of the
@@ -132,9 +133,9 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Could not delete story.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not delete story.')),
+        );
         _progress.forward();
       }
     }
@@ -237,9 +238,17 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                   if (widget.currentUserId != null &&
                       _story.authorId == widget.currentUserId)
                     IconButton(
-                      icon: const Icon(Icons.delete_outline, color: Colors.white),
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: Colors.white,
+                      ),
                       onPressed: _deleteCurrent,
                     ),
+                  FeedbackIconButton(
+                    screen: 'Story viewer',
+                    color: Colors.white,
+                    itemId: _story.id,
+                  ),
                   IconButton(
                     icon: const Icon(Icons.close, color: Colors.white),
                     onPressed: () => Navigator.of(context).pop(),

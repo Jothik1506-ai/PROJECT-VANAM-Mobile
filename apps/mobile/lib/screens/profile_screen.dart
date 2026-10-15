@@ -84,67 +84,67 @@ class _ProfileHeader extends StatelessWidget {
         return Stack(
           children: [
             Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(
-            vertical: VanamSpacing.xl,
-            horizontal: VanamSpacing.lg,
-          ),
-          decoration: BoxDecoration(
-            color: palette.brand,
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(VanamRadii.card),
-              bottomRight: Radius.circular(VanamRadii.card),
-            ),
-          ),
-          child: Column(
-            children: [
-              Container(
-                width: 96,
-                height: 96,
-                padding: const EdgeInsets.all(6),
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.fromBorderSide(
-                    BorderSide(color: Colors.white, width: 2),
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                vertical: VanamSpacing.xl,
+                horizontal: VanamSpacing.lg,
+              ),
+              decoration: BoxDecoration(
+                color: palette.brand,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(VanamRadii.card),
+                  bottomRight: Radius.circular(VanamRadii.card),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    width: 96,
+                    height: 96,
+                    padding: const EdgeInsets.all(6),
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.fromBorderSide(
+                        BorderSide(color: Colors.white, width: 2),
+                      ),
+                    ),
+                    child: const VanamLogo(size: 84),
                   ),
-                ),
-                child: const VanamLogo(size: 84),
-              ),
-              const SizedBox(height: VanamSpacing.md),
-              Text(
-                profile.displayName,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '${profile.language} - Vanam',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.8),
-                  fontSize: 13,
-                ),
-              ),
-              const SizedBox(height: VanamSpacing.md),
-              OutlinedButton(
-                onPressed: () => _showEditProfileDialog(context, profile),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.white, width: 1.2),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(VanamRadii.button),
+                  const SizedBox(height: VanamSpacing.md),
+                  Text(
+                    profile.displayName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: VanamSpacing.lg,
-                    vertical: VanamSpacing.sm,
+                  const SizedBox(height: 2),
+                  Text(
+                    '${profile.language} - Vanam',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.8),
+                      fontSize: 13,
+                    ),
                   ),
-                ),
-                child: const Text('Edit Profile'),
+                  const SizedBox(height: VanamSpacing.md),
+                  OutlinedButton(
+                    onPressed: () => _showEditProfileDialog(context, profile),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.white, width: 1.2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(VanamRadii.button),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: VanamSpacing.lg,
+                        vertical: VanamSpacing.sm,
+                      ),
+                    ),
+                    child: const Text('Edit Profile'),
+                  ),
+                ],
               ),
-            ],
-          ),
             ),
             const Positioned(
               top: VanamSpacing.xs,
@@ -373,9 +373,9 @@ class _ProfileMenuList extends StatelessWidget {
       (
         icon: Icons.lock_outline,
         label: 'Change Password',
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
-        ),
+        onTap: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const ChangePasswordScreen())),
       ),
       (icon: Icons.help_outline, label: 'Help & Support', onTap: null),
     ];
@@ -405,7 +405,9 @@ class _SignOutButton extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Sign out?'),
-        content: const Text("You'll need your username and password to log back in."),
+        content: const Text(
+          "You'll need your username and password to log back in.",
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -451,11 +453,7 @@ class _SignOutButton extends StatelessWidget {
 }
 
 class _ProfileMenuTile extends StatelessWidget {
-  const _ProfileMenuTile({
-    required this.icon,
-    required this.label,
-    this.onTap,
-  });
+  const _ProfileMenuTile({required this.icon, required this.label, this.onTap});
 
   final IconData icon;
   final String label;

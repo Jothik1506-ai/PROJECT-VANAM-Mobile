@@ -89,15 +89,9 @@ class PushNotificationService {
 
       final messaging = _messaging!;
       await messaging.setAutoInitEnabled(true);
-      await messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
+      await messaging.requestPermission(alert: true, badge: true, sound: true);
 
-      FirebaseMessaging.onBackgroundMessage(
-        firebaseMessagingBackgroundHandler,
-      );
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
       FirebaseMessaging.onMessageOpenedApp.listen((message) {
         PushNavigation.openFromPayload(message.data);
       });

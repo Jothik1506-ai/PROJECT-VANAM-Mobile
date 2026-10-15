@@ -9,18 +9,25 @@ import 'member_avatar.dart';
 /// display name (never a relation label), a preview of the last message if
 /// any, and a tap target that opens the real per-pair chat thread.
 class DirectConversationTile extends StatelessWidget {
-  const DirectConversationTile({super.key, required this.conversation});
+  const DirectConversationTile({
+    super.key,
+    required this.conversation,
+    this.onReturn,
+  });
 
   final DirectConversation conversation;
+  final Future<void> Function()? onReturn;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.vanam;
-    final preview = conversation.lastMessageText;
+    final preview = conversation.lastMessageAt == null
+        ? 'Say hello!'
+        : 'Encrypted message';
 
     return InkWell(
-      onTap: () {
-        Navigator.of(context).push(
+      onTap: () async {
+        await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => ChatDetailScreen.direct(
               otherDisplayName: conversation.otherDisplayName,
@@ -28,6 +35,7 @@ class DirectConversationTile extends StatelessWidget {
             ),
           ),
         );
+        await onReturn?.call();
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(
@@ -51,7 +59,7 @@ class DirectConversationTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    preview == null || preview.isEmpty ? 'Say hello!' : preview,
+                    preview,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 13, color: palette.inkMuted),
@@ -60,9 +68,28 @@ class DirectConversationTile extends StatelessWidget {
               ),
             ),
             if (conversation.lastMessageAt != null)
-              Text(
-                _timeLabel(conversation.lastMessageAt!),
-                style: TextStyle(fontSize: 11, color: palette.inkMuted),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    _timeLabel(conversation.lastMessageAt!),
+                    style: TextStyle(fontSize: 11, color: palette.inkMuted),
+                  ),
+                  if (conversation.unreadCount > 0) ...[
+                    const SizedBox(height: 4),
+                    CircleAvatar(
+                      radius: 10,
+                      backgroundColor: palette.brand,
+                      child: Text(
+                        '${conversation.unreadCount}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
           ],
         ),

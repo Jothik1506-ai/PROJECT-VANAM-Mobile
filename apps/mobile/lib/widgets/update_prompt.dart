@@ -13,11 +13,7 @@ import '../theme/tokens.dart';
 ///
 /// See docs/OTA-RELEASES.md.
 class UpdatePrompt extends StatefulWidget {
-  const UpdatePrompt({
-    super.key,
-    required this.result,
-    required this.service,
-  });
+  const UpdatePrompt({super.key, required this.result, required this.service});
 
   final UpdateCheckResult result;
   final UpdateService service;
@@ -175,10 +171,7 @@ class _UpdatePromptState extends State<UpdatePrompt> {
           if (!required)
             TextButton(
               onPressed: _busy ? null : () => Navigator.of(context).pop(),
-              child: Text(
-                'Later',
-                style: TextStyle(color: palette.inkMuted),
-              ),
+              child: Text('Later', style: TextStyle(color: palette.inkMuted)),
             ),
           FilledButton(
             onPressed: _busy ? null : _startUpdate,

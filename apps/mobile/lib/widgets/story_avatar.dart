@@ -39,7 +39,9 @@ class StoryAvatar extends StatelessWidget {
                         ? const LinearGradient(
                             colors: [
                               Color(0xFFE07A3F), // brand-adjacent warm accent
-                              Color(0xFF9F2F24), // kumkum, matches the app's accent palette
+                              Color(
+                                0xFF9F2F24,
+                              ), // kumkum, matches the app's accent palette
                             ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,

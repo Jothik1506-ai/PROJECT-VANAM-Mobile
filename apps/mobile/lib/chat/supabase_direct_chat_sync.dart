@@ -58,7 +58,10 @@ class SupabaseDirectChatSync {
         messages = await _decodeRows(typed, key);
       }
     }
-    return messages;
+    // Old ciphertext whose key was intentionally discarded has no recovery
+    // value. Do not keep rendering permanent encryption placeholders while
+    // the participants start a fresh conversation.
+    return messages.where((message) => !message.isUnavailable).toList();
   }
 
   Future<List<ChatMessage>> _decodeRows(
@@ -109,7 +112,7 @@ class SupabaseDirectChatSync {
     required String text,
   }) async {
     final key = await _conversationKey(conversationId);
-    if (key == null) throw StateError('Encryption key not ready');
+    if (key == null) throw const EncryptionKeyUnavailableException();
     final ciphertext = await _e2ee.encryptMessage(
       plaintext: text,
       symmetricKey: key,
@@ -134,7 +137,8 @@ class SupabaseDirectChatSync {
     // from null to a timestamp via UPDATE, and the sender's device needs
     // that event to turn its sent-tick into a read-tick live, the same way
     // a new message needs the INSERT event to appear live.
-    return _client
+    final userId = currentUserId;
+    var channel = _client
         .channel('direct_messages:$conversationId')
         .onPostgresChanges(
           event: PostgresChangeEvent.insert,
@@ -157,8 +161,26 @@ class SupabaseDirectChatSync {
             value: conversationId,
           ),
           callback: (_) => onChanged(),
-        )
-        .subscribe();
+        );
+    if (userId != null) {
+      channel = channel.onPostgresChanges(
+        event: PostgresChangeEvent.insert,
+        schema: 'public',
+        table: 'key_wraps',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'member_id',
+          value: userId,
+        ),
+        callback: (payload) {
+          final row = payload.newRecord;
+          if (row['scope'] == 'direct' && row['scope_id'] == conversationId) {
+            onChanged();
+          }
+        },
+      );
+    }
+    return channel.subscribe();
   }
 
   Future<void> unsubscribe(RealtimeChannel channel) {

@@ -62,6 +62,23 @@ class Post {
   final List<PostMediaItem> mediaItems;
 
   bool get hasVideo => mediaItems.any((m) => m.isVideo);
+
+  Post copyWith({int? likeCount, int? commentCount, bool? likedByMe}) {
+    return Post(
+      id: id,
+      authorId: authorId,
+      authorName: authorName,
+      createdAt: createdAt,
+      caption: caption,
+      likeCount: likeCount ?? this.likeCount,
+      commentCount: commentCount ?? this.commentCount,
+      mediaUrls: mediaUrls,
+      isMine: isMine,
+      likedByMe: likedByMe ?? this.likedByMe,
+      mediaItems: mediaItems,
+    );
+  }
+
   PostMediaItem? get videoItem {
     for (final m in mediaItems) {
       if (m.isVideo) return m;
@@ -92,8 +109,8 @@ class Post {
     final urls = media is List
         ? media.whereType<String>().toList(growable: false)
         : (items.isNotEmpty
-            ? items.map((m) => m.url).toList(growable: false)
-            : const <String>[]);
+              ? items.map((m) => m.url).toList(growable: false)
+              : const <String>[]);
 
     return Post(
       id: json['id'] as String? ?? '',

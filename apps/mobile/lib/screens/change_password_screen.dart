@@ -43,9 +43,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       await authService.changeOwnPassword(_passwordController.text);
       if (!mounted) return;
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password changed')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Password changed')));
     } on LoginException catch (e) {
       setState(() => _errorText = e.message);
     } catch (e) {

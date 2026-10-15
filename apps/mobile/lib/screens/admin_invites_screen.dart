@@ -101,9 +101,7 @@ class _AdminInvitesScreenState extends State<AdminInvitesScreen> {
       unawaited(FirebaseCrashlytics.instance.recordError(e, st, fatal: false));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not issue login. Try again.'),
-          ),
+          const SnackBar(content: Text('Could not issue login. Try again.')),
         );
       }
     }
@@ -529,11 +527,7 @@ class _InviteTile extends StatelessWidget {
             const SizedBox(width: VanamSpacing.xs),
             IconButton(
               tooltip: 'Reset password',
-              icon: Icon(
-                Icons.lock_reset,
-                size: 18,
-                color: palette.inkMuted,
-              ),
+              icon: Icon(Icons.lock_reset, size: 18, color: palette.inkMuted),
               onPressed: onResetPassword,
             ),
             const SizedBox(width: VanamSpacing.xs),

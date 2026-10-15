@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../notifications/in_app_notification.dart';
 import '../notifications/in_app_notification_service.dart';
 import '../theme/tokens.dart';
+import '../widgets/feedback_button.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -12,8 +13,12 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  late Future<List<InAppNotification>> _notifications = inAppNotificationService
-      .fetchNotifications();
+  late Future<List<InAppNotification>> _notifications;
+
+  Future<List<InAppNotification>> _loadInitial() async {
+    await inAppNotificationService.markAllRead();
+    return inAppNotificationService.fetchNotifications();
+  }
 
   Future<void> _refresh() async {
     setState(() {
@@ -30,9 +35,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   void initState() {
     super.initState();
-    inAppNotificationService.markAllRead().then((_) {
-      if (mounted) _refresh();
-    });
+    _notifications = _loadInitial();
   }
 
   @override
@@ -42,6 +45,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       appBar: AppBar(
         title: const Text('Notifications'),
         actions: [
+          const FeedbackIconButton(screen: 'Notifications'),
           TextButton(onPressed: _markAllRead, child: const Text('Mark read')),
         ],
       ),
@@ -50,8 +54,24 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         child: FutureBuilder<List<InAppNotification>>(
           future: _notifications,
           builder: (context, snapshot) {
-            if (!snapshot.hasData) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  const SizedBox(height: 120),
+                  Icon(Icons.cloud_off_outlined, color: palette.inkMuted),
+                  const SizedBox(height: VanamSpacing.sm),
+                  Center(
+                    child: Text(
+                      'Could not load notifications. Pull down to retry.',
+                      style: TextStyle(color: palette.inkMuted),
+                    ),
+                  ),
+                ],
+              );
             }
 
             final notifications = snapshot.data!;

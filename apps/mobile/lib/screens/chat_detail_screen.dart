@@ -7,9 +7,12 @@ import '../chat/chat_controller.dart';
 import '../chat/chat_message.dart';
 import '../chat/supabase_chat_sync.dart';
 import '../chat/supabase_direct_chat_sync.dart';
+import '../crypto/key_sync_service.dart';
+import '../diagnostics/crash_reporting.dart';
 import '../notifications/active_chat_tracker.dart';
 import '../profile/profile_controller.dart';
 import '../theme/tokens.dart';
+import '../widgets/feedback_button.dart';
 import 'admin_invites_screen.dart';
 
 enum ChatDetailMode { familyGroup, direct }
@@ -75,6 +78,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   SupabaseDirectChatSync? _directSync;
   RealtimeChannel? _messagesChannel;
   String? _syncStatus;
+  bool _keyMissingOnDevice = false;
 
   // Direct mode's _messages is disposed in dispose() (unlike family-group
   // mode, which reuses the long-lived shared controller) — a realtime
@@ -88,6 +92,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   // stale response overwrite a newer one. Only the response matching the
   // latest request actually gets applied.
   int _refreshRequestId = 0;
+  bool _initialScrollDone = false;
+  bool _initialScrollScheduled = false;
 
   /// The scope key this screen registers with activeChatTracker so a
   /// foreground push for this exact chat gets suppressed (see
@@ -101,6 +107,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   void initState() {
     super.initState();
     activeChatTracker.setActive(_activeScope);
+    unawaited(
+      CrashReporting.setContext(screen: 'Chat', chatScope: _activeScope),
+    );
+    _messages.addListener(_handleMessagesChanged);
+    _pending.addListener(_handleMessagesChanged);
     _attachSupabaseSync();
   }
 
@@ -108,6 +119,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   void dispose() {
     _disposed = true;
     activeChatTracker.clearIfActive(_activeScope);
+    unawaited(CrashReporting.setContext(screen: 'Messages'));
+    _messages.removeListener(_handleMessagesChanged);
+    _pending.removeListener(_handleMessagesChanged);
     final channel = _messagesChannel;
     if (channel != null) {
       if (_familySync != null) {
@@ -151,6 +165,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           _familySync = sync;
           _messagesChannel = channel;
           _syncStatus = null;
+          _keyMissingOnDevice = false;
         });
         return;
       }
@@ -200,12 +215,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         _directSync = sync;
         _messagesChannel = channel;
         _syncStatus = null;
+        _keyMissingOnDevice = false;
       });
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
-      setState(
-        () => _syncStatus = 'Offline mode - messages stay on this device',
-      );
+      setState(() {
+        _keyMissingOnDevice = error is EncryptionKeyMissingOnDeviceException;
+        _syncStatus = _keyMissingOnDevice
+            ? 'Encryption key is missing on this device.'
+            : error is TimeoutException
+            ? 'Message sync is taking too long. Check your connection.'
+            : 'Could not sync messages. Your saved messages are still available.';
+      });
     }
   }
 
@@ -225,9 +246,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
     _pending.value = [..._pending.value, pendingMessage];
     _textController.clear();
-    _scrollToEnd();
     await _deliver(pendingMessage);
-    _scrollToEnd();
   }
 
   /// Tap on a failed message: try sending it again in place.
@@ -263,7 +282,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         }
       }
       _removePending(pendingMessage.id);
-    } catch (error) {
+    } catch (error, stack) {
+      unawaited(
+        CrashReporting.recordError(error, stack, reason: 'chat_send_failed'),
+      );
       // Keep the message in the thread, marked "Not sent", so the user can
       // tap to retry instead of retyping it.
       _replacePending(
@@ -271,9 +293,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         pendingMessage.copyWith(pending: false, failed: true),
       );
       if (!mounted) return;
-      final encryptionSyncing = error.toString().contains(
-        'Encryption key not ready',
-      );
+      final encryptionSyncing = error is EncryptionKeyUnavailableException;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           duration: encryptionSyncing
@@ -309,15 +329,46 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _pending.value = _pending.value.where((m) => m.id != id).toList();
   }
 
-  Future<void> _scrollToEnd() async {
-    // New message lands at the end of the list — follow it.
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+  void _handleMessagesChanged() {
+    final shouldFollow = !_scrollController.hasClients || _isNearBottom;
+    if (!shouldFollow) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToEnd());
+  }
+
+  bool get _isNearBottom {
+    if (!_scrollController.hasClients) return true;
+    return _scrollController.position.maxScrollExtent -
+            _scrollController.position.pixels <=
+        80;
+  }
+
+  void _scrollToEnd({bool jump = false}) {
     if (!mounted || !_scrollController.hasClients) return;
+    final end = _scrollController.position.maxScrollExtent;
+    if (jump) {
+      _scrollController.jumpTo(end);
+      return;
+    }
     _scrollController.animateTo(
-      _scrollController.position.maxScrollExtent,
+      end,
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeOut,
     );
+  }
+
+  void _scheduleInitialScroll() {
+    if (_initialScrollDone || _initialScrollScheduled) return;
+    _initialScrollScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initialScrollScheduled = false;
+      if (!mounted || _initialScrollDone) return;
+      if (!_scrollController.hasClients) {
+        _scheduleInitialScroll();
+        return;
+      }
+      _scrollToEnd(jump: true);
+      _initialScrollDone = true;
+    });
   }
 
   Future<void> _confirmResetEncryption() async {
@@ -350,12 +401,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         await sync.resetEncryption(groupId: widget._controller!.groupId);
         await widget._controller!.refreshFromRemote();
       } else {
-        final sync = _directSync;
-        if (sync == null) return;
+        final sync =
+            _directSync ?? SupabaseDirectChatSync(Supabase.instance.client);
         await sync.resetEncryption(widget.conversationId!);
-        _messages.value = await sync.fetchMessages(
-          conversationId: widget.conversationId!,
-        );
+        await _attachSupabaseSync();
+        return;
+      }
+      if (mounted) {
+        setState(() {
+          _keyMissingOnDevice = false;
+          _syncStatus = null;
+        });
       }
     } catch (_) {
       if (!mounted) return;
@@ -380,6 +436,31 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           style: TextStyle(fontWeight: FontWeight.w700, color: palette.ink),
         ),
         actions: [
+          FeedbackIconButton(
+            screen: 'Chat',
+            color: palette.brand,
+            chatId: widget.mode == ChatDetailMode.familyGroup
+                ? widget._controller!.groupId
+                : widget.conversationId!,
+            chatType: widget.mode == ChatDetailMode.familyGroup
+                ? 'family group'
+                : 'direct',
+            chatName: widget.groupName,
+            itemId: widget.mode == ChatDetailMode.familyGroup
+                ? widget._controller!.groupId
+                : widget.conversationId!,
+            keyState:
+                keySyncService.hasCachedScopeKey(
+                  scope: widget.mode == ChatDetailMode.familyGroup
+                      ? 'group'
+                      : 'direct',
+                  scopeId: widget.mode == ChatDetailMode.familyGroup
+                      ? widget._controller!.groupId
+                      : widget.conversationId!,
+                )
+                ? 'available'
+                : 'waiting',
+          ),
           if (widget.isAdmin)
             IconButton(
               tooltip: 'Family Invites',
@@ -388,9 +469,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ),
               icon: Icon(Icons.person_add_alt_1, color: palette.brand),
             ),
-          Padding(
-            padding: const EdgeInsets.only(right: VanamSpacing.md),
-            child: Icon(Icons.lock_outline, size: 18, color: palette.brand),
+          IconButton(
+            tooltip: 'Reset encryption',
+            onPressed: _confirmResetEncryption,
+            icon: Icon(Icons.lock_outline, size: 18, color: palette.brand),
           ),
         ],
       ),
@@ -405,9 +487,28 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 horizontal: VanamSpacing.md,
                 vertical: VanamSpacing.xs,
               ),
-              child: Text(
-                _syncStatus!,
-                style: TextStyle(fontSize: 12, color: palette.brandStrong),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _syncStatus!,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: palette.brandStrong,
+                      ),
+                    ),
+                  ),
+                  if (_keyMissingOnDevice)
+                    TextButton(
+                      onPressed: _confirmResetEncryption,
+                      child: const Text('Reset'),
+                    )
+                  else if (widget.mode == ChatDetailMode.direct)
+                    TextButton(
+                      onPressed: _attachSupabaseSync,
+                      child: const Text('Retry'),
+                    ),
+                ],
               ),
             ),
           Expanded(
@@ -424,6 +525,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       style: TextStyle(color: palette.inkMuted),
                     ),
                   );
+                }
+                if (!_initialScrollDone) {
+                  _scheduleInitialScroll();
                 }
                 return ListView.builder(
                   controller: _scrollController,
@@ -514,41 +618,43 @@ class _MessageBubble extends StatelessWidget {
             onTap: onRetry,
             onLongPress: onDiscard,
             child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.sizeOf(context).width * 0.75,
-            ),
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: VanamSpacing.md,
-                vertical: VanamSpacing.sm,
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.sizeOf(context).width * 0.75,
               ),
-              decoration: BoxDecoration(
-                color: bubbleColor,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(VanamRadii.field),
-                  topRight: const Radius.circular(VanamRadii.field),
-                  bottomLeft: Radius.circular(
-                    message.isMine ? VanamRadii.field : 4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: VanamSpacing.md,
+                  vertical: VanamSpacing.sm,
+                ),
+                decoration: BoxDecoration(
+                  color: bubbleColor,
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(VanamRadii.field),
+                    topRight: const Radius.circular(VanamRadii.field),
+                    bottomLeft: Radius.circular(
+                      message.isMine ? VanamRadii.field : 4,
+                    ),
+                    bottomRight: Radius.circular(
+                      message.isMine ? 4 : VanamRadii.field,
+                    ),
                   ),
-                  bottomRight: Radius.circular(
-                    message.isMine ? 4 : VanamRadii.field,
+                  border: message.isMine
+                      ? null
+                      : Border.all(color: palette.line),
+                ),
+                child: Text(
+                  message.text,
+                  style: TextStyle(
+                    color: message.isUnavailable && !message.isMine
+                        ? palette.inkMuted
+                        : textColor,
+                    fontStyle: message.isUnavailable
+                        ? FontStyle.italic
+                        : FontStyle.normal,
                   ),
                 ),
-                border: message.isMine ? null : Border.all(color: palette.line),
-              ),
-              child: Text(
-                message.text,
-                style: TextStyle(
-                  color: message.isUnavailable && !message.isMine
-                      ? palette.inkMuted
-                      : textColor,
-                  fontStyle: message.isUnavailable
-                      ? FontStyle.italic
-                      : FontStyle.normal,
-                ),
               ),
             ),
-          ),
           ),
           Padding(
             padding: const EdgeInsets.only(top: 2),

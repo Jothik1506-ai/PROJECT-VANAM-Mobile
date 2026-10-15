@@ -2,6 +2,10 @@ import 'dart:async';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../chat/chat_controller.dart';
+import '../crypto/key_sync_service.dart';
+import '../diagnostics/crash_reporting.dart';
+import '../profile/profile_controller.dart';
 import 'family_profile.dart';
 
 // reportLogin being awaited with no timeout used to be able to hang the
@@ -109,7 +113,14 @@ class AuthService {
     }
   }
 
-  Future<void> signOut() => _client.auth.signOut();
+  Future<void> signOut() async {
+    familyGroupChat.clearSession();
+    keySyncService.clearSession();
+    profileController.clearSession();
+    await CrashReporting.setUser(null);
+    await CrashReporting.setContext(screen: 'Auth');
+    await _client.auth.signOut();
+  }
 
   /// Self-service password reset via a one-time recovery code (shown once
   /// alongside the username/password when an admin creates/issues/resets

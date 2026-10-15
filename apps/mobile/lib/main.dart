@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'chat/chat_controller.dart';
 import 'config/app_config.dart';
+import 'diagnostics/crash_reporting.dart';
 import 'notifications/push_navigation.dart';
 import 'notifications/push_notification_service.dart';
 import 'profile/profile_controller.dart';
@@ -73,8 +74,16 @@ Future<void> main() async {
         url: AppConfig.supabaseUrl,
         publishableKey: AppConfig.supabaseAnonKey,
       );
-      await profileController.load();
-      await familyGroupChat.load();
+      await CrashReporting.setUser(
+        Supabase.instance.client.auth.currentUser?.id,
+      );
+      await CrashReporting.setContext(screen: 'Auth');
+      await profileController.load(
+        userId: Supabase.instance.client.auth.currentUser?.id,
+      );
+      await familyGroupChat.load(
+        userId: Supabase.instance.client.auth.currentUser?.id,
+      );
       runApp(const VanamApp());
     },
     (error, stack) {

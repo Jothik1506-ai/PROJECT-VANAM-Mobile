@@ -23,9 +23,17 @@ class ChatController extends ValueNotifier<List<ChatMessage>> {
   final String groupId;
 
   bool _loaded = false;
+  String _accountId = 'signed-out';
   SupabaseChatSync? _sync;
 
-  Future<void> load() async {
+  Future<void> load({String? userId}) async {
+    final accountId = userId ?? 'signed-out';
+    if (_accountId != accountId) {
+      _loaded = false;
+      _sync = null;
+      value = const [];
+      _accountId = accountId;
+    }
     if (_loaded) return;
     _loaded = true;
 
@@ -38,11 +46,19 @@ class ChatController extends ValueNotifier<List<ChatMessage>> {
         value = decoded
             .whereType<Map<String, dynamic>>()
             .map(ChatMessage.fromJson)
+            .where((message) => !message.isUnavailable)
             .toList();
       }
     } catch (_) {
       value = const [];
     }
+  }
+
+  void clearSession() {
+    _loaded = false;
+    _accountId = 'signed-out';
+    _sync = null;
+    value = const [];
   }
 
   Future<void> attachSync(SupabaseChatSync sync) async {
@@ -103,12 +119,19 @@ class ChatController extends ValueNotifier<List<ChatMessage>> {
 
   Future<void> _persist() async {
     final file = await _chatFile();
-    final json = value.map((m) => m.toJson()).toList();
+    final json = value
+        .where((message) => !message.isUnavailable)
+        .map((message) => message.toJson())
+        .toList();
     await file.writeAsString(jsonEncode(json));
   }
 
   Future<File> _chatFile() async {
     final directory = await getApplicationSupportDirectory();
-    return File('${directory.path}${Platform.pathSeparator}$fileName');
+    final dot = fileName.lastIndexOf('.');
+    final scopedName = dot == -1
+        ? '${fileName}_$_accountId'
+        : '${fileName.substring(0, dot)}_$_accountId${fileName.substring(dot)}';
+    return File('${directory.path}${Platform.pathSeparator}$scopedName');
   }
 }

@@ -12,10 +12,12 @@ class ConversationTile extends StatelessWidget {
     super.key,
     required this.conversation,
     this.isAdmin = false,
+    this.onReturn,
   });
 
   final Conversation conversation;
   final bool isAdmin;
+  final Future<void> Function()? onReturn;
 
   @override
   Widget build(BuildContext context) {
@@ -26,9 +28,9 @@ class ConversationTile extends StatelessWidget {
     final isFamilyGroup = conversation.name == 'Family Group';
 
     return InkWell(
-      onTap: () {
+      onTap: () async {
         if (isFamilyGroup) {
-          Navigator.of(context).push(
+          await Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => ChatDetailScreen(
                 groupName: conversation.name,
@@ -36,6 +38,7 @@ class ConversationTile extends StatelessWidget {
               ),
             ),
           );
+          await onReturn?.call();
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(

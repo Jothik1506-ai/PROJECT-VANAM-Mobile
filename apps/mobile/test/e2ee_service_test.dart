@@ -13,29 +13,30 @@ void main() {
   const channel = MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(channel, (call) async {
-    switch (call.method) {
-      case 'read':
-        return fakeStore[call.arguments['key']];
-      case 'write':
-        fakeStore[call.arguments['key'] as String] =
-            call.arguments['value'] as String;
-        return null;
-      case 'readAll':
-        return fakeStore;
-      case 'delete':
-        fakeStore.remove(call.arguments['key']);
-        return null;
-      case 'deleteAll':
-        fakeStore.clear();
-        return null;
-      case 'containsKey':
-        return fakeStore.containsKey(call.arguments['key']);
-      default:
-        return null;
-    }
-  });
+        switch (call.method) {
+          case 'read':
+            return fakeStore[call.arguments['key']];
+          case 'write':
+            fakeStore[call.arguments['key'] as String] =
+                call.arguments['value'] as String;
+            return null;
+          case 'readAll':
+            return fakeStore;
+          case 'delete':
+            fakeStore.remove(call.arguments['key']);
+            return null;
+          case 'deleteAll':
+            fakeStore.clear();
+            return null;
+          case 'containsKey':
+            return fakeStore.containsKey(call.arguments['key']);
+          default:
+            return null;
+        }
+      });
 
   final e2ee = E2eeService.instance;
+  e2ee.useAccount('e2ee-service-test-user');
 
   group('E2eeService message encryption', () {
     test('round-trips a plaintext message under a symmetric key', () async {
@@ -69,18 +70,25 @@ void main() {
       expect(decrypted, isNull);
     });
 
-    test('two encryptions of the same plaintext produce different ciphertext',
-        () async {
-      final key = e2ee.generateSymmetricKey();
-      final a = await e2ee.encryptMessage(plaintext: 'same', symmetricKey: key);
-      final b = await e2ee.encryptMessage(plaintext: 'same', symmetricKey: key);
-      expect(a, isNot(b)); // random nonce each time
-    });
+    test(
+      'two encryptions of the same plaintext produce different ciphertext',
+      () async {
+        final key = e2ee.generateSymmetricKey();
+        final a = await e2ee.encryptMessage(
+          plaintext: 'same',
+          symmetricKey: key,
+        );
+        final b = await e2ee.encryptMessage(
+          plaintext: 'same',
+          symmetricKey: key,
+        );
+        expect(a, isNot(b)); // random nonce each time
+      },
+    );
   });
 
   group('E2eeService sealed-box key wrapping', () {
-    test('seals a symmetric key to a public key and unseals it back',
-        () async {
+    test('seals a symmetric key to a public key and unseals it back', () async {
       final symmetricKey = e2ee.generateSymmetricKey();
       final recipientPublicKey = await e2ee.myPublicKeyBase64();
 
@@ -120,7 +128,8 @@ void main() {
     test('decryptMessage tolerates a line-wrapped ciphertext too', () async {
       final key = e2ee.generateSymmetricKey();
       final ciphertext = await e2ee.encryptMessage(
-        plaintext: 'A message long enough that its base64 ciphertext '
+        plaintext:
+            'A message long enough that its base64 ciphertext '
             'exceeds seventy-six characters once encoded, matching what '
             "Postgres's encode() would line-wrap in production.",
         symmetricKey: key,

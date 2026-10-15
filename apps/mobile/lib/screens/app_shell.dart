@@ -4,8 +4,11 @@ import 'package:flutter/material.dart';
 
 import '../auth/family_profile.dart';
 import '../auth/auth_service.dart';
+import '../chat/chat_controller.dart';
 import '../crypto/key_sync_service.dart';
+import '../diagnostics/crash_reporting.dart';
 import '../notifications/push_notification_service.dart';
+import '../profile/profile_controller.dart';
 import '../widgets/feedback_button.dart';
 import '../widgets/vanam_bottom_nav.dart';
 import '../work_manager/work_manager_activity.dart';
@@ -58,6 +61,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    unawaited(CrashReporting.setUser(widget.profile.id));
+    unawaited(CrashReporting.setContext(screen: _screenLabels[_index]));
+    unawaited(familyGroupChat.load(userId: widget.profile.id));
+    unawaited(profileController.load(userId: widget.profile.id));
     // Fire-and-forget: uploads this device's E2EE public key if it hasn't
     // already. Runs every time the app shell mounts (cheap no-op once
     // set) rather than in AuthGate, so it fires on every path that
@@ -149,6 +156,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         itemCount: 4,
         onPageChanged: (i) {
           setState(() => _index = i);
+          unawaited(CrashReporting.setContext(screen: _screenLabels[i]));
           workManagerActivity.reportActive(profile: widget.profile);
         },
         itemBuilder: (context, index) => _screenFor(index),
@@ -180,11 +188,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             // header; Reels has no header, so it stays reachable here.
             if (_index == 0)
               ListTile(
-              leading: const Icon(Icons.feedback_outlined),
-              title: const Text('Feedback'),
-              subtitle: Text('Send feedback from ${_screenLabels[_index]}'),
-              onTap: () => Navigator.of(context).pop(_GlobalAction.feedback),
-            ),
+                leading: const Icon(Icons.feedback_outlined),
+                title: const Text('Feedback'),
+                subtitle: Text('Send feedback from ${_screenLabels[_index]}'),
+                onTap: () => Navigator.of(context).pop(_GlobalAction.feedback),
+              ),
           ],
         ),
       ),

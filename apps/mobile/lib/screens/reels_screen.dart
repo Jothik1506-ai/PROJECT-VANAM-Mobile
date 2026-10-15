@@ -6,6 +6,7 @@ import '../media/vanam_cached_image.dart';
 import '../models/reel_item.dart';
 import '../theme/tokens.dart';
 import '../widgets/member_avatar.dart';
+import '../widgets/feedback_button.dart';
 
 /// Reels: every photo posted to the Home family feed, full-screen,
 /// swipe-vertically — the same posts and the same [HomeFeedRepository] as
@@ -75,11 +76,8 @@ class _ReelsScreenState extends State<ReelsScreen> {
             child: PageView.builder(
               scrollDirection: Axis.vertical,
               itemCount: reels.length,
-              itemBuilder: (context, index) => _ReelPage(
-                reel: reels[index],
-                repository: _repository,
-                onChanged: _refresh,
-              ),
+              itemBuilder: (context, index) =>
+                  _ReelPage(reel: reels[index], repository: _repository),
             ),
           );
         },
@@ -89,15 +87,10 @@ class _ReelsScreenState extends State<ReelsScreen> {
 }
 
 class _ReelPage extends StatefulWidget {
-  const _ReelPage({
-    required this.reel,
-    required this.repository,
-    required this.onChanged,
-  });
+  const _ReelPage({required this.reel, required this.repository});
 
   final ReelItem reel;
   final HomeFeedRepository repository;
-  final Future<void> Function() onChanged;
 
   @override
   State<_ReelPage> createState() => _ReelPageState();
@@ -105,15 +98,25 @@ class _ReelPage extends StatefulWidget {
 
 class _ReelPageState extends State<_ReelPage> {
   var _liking = false;
+  late bool _likedByMe = widget.reel.post.likedByMe;
+  late int _likeCount = widget.reel.post.likeCount;
 
   Future<void> _toggleLike() async {
     if (_liking) return;
-    setState(() => _liking = true);
+    final wasLiked = _likedByMe;
+    setState(() {
+      _liking = true;
+      _likedByMe = !wasLiked;
+      _likeCount += wasLiked ? -1 : 1;
+    });
     try {
       await widget.repository.toggleLike(widget.reel.post);
-      await widget.onChanged();
     } catch (_) {
       if (!mounted) return;
+      setState(() {
+        _likedByMe = wasLiked;
+        _likeCount += wasLiked ? 1 : -1;
+      });
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Could not update like.')));
@@ -198,6 +201,15 @@ class _ReelPageState extends State<_ReelPage> {
             ),
           ),
         Positioned(
+          top: VanamSpacing.md,
+          left: VanamSpacing.md,
+          child: FeedbackIconButton(
+            screen: 'Reels',
+            color: Colors.white,
+            itemId: post.id,
+          ),
+        ),
+        Positioned(
           left: VanamSpacing.md,
           right: 72,
           bottom: VanamSpacing.xl,
@@ -242,15 +254,13 @@ class _ReelPageState extends State<_ReelPage> {
               IconButton(
                 onPressed: _liking ? null : _toggleLike,
                 icon: Icon(
-                  post.likedByMe
-                      ? Icons.favorite_rounded
-                      : Icons.favorite_border,
-                  color: post.likedByMe ? Colors.redAccent : Colors.white,
+                  _likedByMe ? Icons.favorite_rounded : Icons.favorite_border,
+                  color: _likedByMe ? Colors.redAccent : Colors.white,
                   size: 30,
                 ),
               ),
               Text(
-                '${post.likeCount}',
+                '$_likeCount',
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w600,

@@ -95,7 +95,9 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
             mediaItems = await _signedMediaItemsFor(rawItems);
             mediaUrls = mediaItems.map((m) => m.url).toList(growable: false);
           } else if (paths is List && paths.isNotEmpty) {
-            mediaUrls = await _signedUrlsFor(paths.whereType<String>().toList());
+            mediaUrls = await _signedUrlsFor(
+              paths.whereType<String>().toList(),
+            );
             mediaItems = mediaUrls
                 .map((u) => PostMediaItem(url: u, type: PostMediaType.photo))
                 .toList(growable: false);
@@ -110,12 +112,14 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
             'liked_by_me': row['liked_by_me'] == true,
             'media_urls': mediaUrls,
             'media_items': mediaItems
-                .map((m) => {
-                      'url': m.url,
-                      'media_type': m.type.name,
-                      'duration_seconds': m.durationSeconds,
-                      'thumbnail_url': m.thumbnailUrl,
-                    })
+                .map(
+                  (m) => {
+                    'url': m.url,
+                    'media_type': m.type.name,
+                    'duration_seconds': m.durationSeconds,
+                    'thumbnail_url': m.thumbnailUrl,
+                  },
+                )
                 .toList(),
           });
         }),
@@ -127,7 +131,9 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
 
   /// Signs structured media items by their specific storage bucket
   /// ('family-post-media' or 'family-video-media').
-  Future<List<PostMediaItem>> _signedMediaItemsFor(List<dynamic> rawItems) async {
+  Future<List<PostMediaItem>> _signedMediaItemsFor(
+    List<dynamic> rawItems,
+  ) async {
     if (rawItems.isEmpty) return const [];
     final bucketToIndicesAndPaths = <String, List<MapEntry<int, String>>>{};
     for (var i = 0; i < rawItems.length; i++) {
@@ -310,7 +316,10 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
   /// later step in the same call fails.
   Future<void> _deletePostRowBestEffort(String postId) async {
     try {
-      await _client.rpc<void>('delete_home_post', params: {'p_post_id': postId});
+      await _client.rpc<void>(
+        'delete_home_post',
+        params: {'p_post_id': postId},
+      );
     } catch (_) {}
   }
 
@@ -416,7 +425,9 @@ class SupabaseHomeFeedRepository implements HomeFeedRepository {
   }
 
   String _videoPathFor(String userId, String postId, String name) {
-    final extension = name.contains('.') ? name.split('.').last.toLowerCase() : 'mp4';
+    final extension = name.contains('.')
+        ? name.split('.').last.toLowerCase()
+        : 'mp4';
     return '$userId/$postId/video_${DateTime.now().millisecondsSinceEpoch}.$extension';
   }
 

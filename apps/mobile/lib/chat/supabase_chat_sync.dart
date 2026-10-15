@@ -44,7 +44,10 @@ class SupabaseChatSync {
         messages = await _decodeRows(typed, key);
       }
     }
-    return messages;
+    // Old ciphertext whose key was intentionally discarded has no recovery
+    // value. Do not keep rendering permanent encryption placeholders while
+    // the family starts a fresh chat history.
+    return messages.where((message) => !message.isUnavailable).toList();
   }
 
   Future<List<ChatMessage>> _decodeRows(
@@ -81,7 +84,7 @@ class SupabaseChatSync {
     String groupId = 'family-group',
   }) async {
     final key = await _groupKey();
-    if (key == null) throw StateError('Encryption key not ready');
+    if (key == null) throw const EncryptionKeyUnavailableException();
     final ciphertext = await _e2ee.encryptMessage(
       plaintext: text,
       symmetricKey: key,
@@ -99,7 +102,8 @@ class SupabaseChatSync {
     required String groupId,
     required Future<void> Function() onChanged,
   }) {
-    return _client
+    final userId = currentUserId;
+    var channel = _client
         .channel('messages:$groupId')
         .onPostgresChanges(
           event: PostgresChangeEvent.insert,
@@ -111,8 +115,26 @@ class SupabaseChatSync {
             value: groupId,
           ),
           callback: (_) => onChanged(),
-        )
-        .subscribe();
+        );
+    if (userId != null) {
+      channel = channel.onPostgresChanges(
+        event: PostgresChangeEvent.insert,
+        schema: 'public',
+        table: 'key_wraps',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'member_id',
+          value: userId,
+        ),
+        callback: (payload) {
+          final row = payload.newRecord;
+          if (row['scope'] == 'group' && row['scope_id'] == groupId) {
+            onChanged();
+          }
+        },
+      );
+    }
+    return channel.subscribe();
   }
 
   Future<void> unsubscribe(RealtimeChannel channel) {

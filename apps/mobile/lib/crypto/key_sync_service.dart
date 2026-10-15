@@ -44,6 +44,17 @@ class KeySyncService {
 
   String _cacheKey(String scope, String scopeId) => '$scope:$scopeId';
 
+  bool hasCachedScopeKey({required String scope, required String scopeId}) {
+    return _cache.containsKey(_cacheKey(scope, scopeId));
+  }
+
+  void clearSession() {
+    _cache.clear();
+    _publicKeyReady = null;
+    _refreshInProgress = null;
+    _e2ee.clearSession();
+  }
+
   /// Drops the in-memory copy of a scope key so the next [getScopeKey]
   /// re-reads this device's wrap from the server. Needed because another
   /// member rotating the key replaces every wrap, while this device would
@@ -72,16 +83,26 @@ class KeySyncService {
   Future<void> _ensurePublicKeyUploaded() async {
     final uid = _client.auth.currentUser?.id;
     if (uid == null) return;
+    _e2ee.useAccount(uid);
 
-    final myKey = await _e2ee.myPublicKeyBase64();
     final row = await _client
         .from('profiles')
         .select('public_key')
         .eq('id', uid)
         .maybeSingle()
         .timeout(_kRpcTimeout);
-    if (row != null && row['public_key'] == myKey) return;
+    final serverKey = row?['public_key'] as String?;
+    final localKeyPair = await _e2ee.loadKeyPair();
+    if (serverKey != null) {
+      if (localKeyPair == null) {
+        throw const EncryptionKeyMissingOnDeviceException();
+      }
+      final myKey = await _e2ee.myPublicKeyBase64();
+      if (serverKey == myKey) return;
+      throw const EncryptionKeyMissingOnDeviceException();
+    }
 
+    final myKey = await _e2ee.myPublicKeyBase64();
     await _client
         .from('profiles')
         .update({'public_key': myKey})
@@ -116,14 +137,6 @@ class KeySyncService {
         await resealForMissingMembers(scope: scope, scopeId: scopeId, key: key);
         return key;
       }
-
-      // This wrap was sealed to a private key that no longer exists, which
-      // happens after reinstall/clear-data. Remove only our unusable copy;
-      // another participant that still has the scope key will reseal it for
-      // the new public key on their next refresh/open.
-      await _client
-          .rpc('delete_own_key_wrap', params: {'p_scope': scope, 'p_scope_id': scopeId})
-          .timeout(_kRpcTimeout);
     }
 
     // No wrap for me yet. If nothing has ever been created for this scope,
@@ -212,7 +225,37 @@ class KeySyncService {
     required String scope,
     required String scopeId,
   }) async {
-    await ensurePublicKeyUploaded();
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) throw StateError('No signed-in account for encryption');
+    _e2ee.useAccount(uid);
+
+    // This path is invoked only after the reset confirmation. A missing or
+    // mismatched local identity may be replaced here, never during automatic
+    // synchronization while existing wraps could still be recoverable.
+    final row = await _client
+        .from('profiles')
+        .select('public_key')
+        .eq('id', uid)
+        .maybeSingle()
+        .timeout(_kRpcTimeout);
+    final localKeyPair = await _e2ee.loadKeyPair();
+    final localPublicKey = localKeyPair == null
+        ? null
+        : await _e2ee.myPublicKeyBase64();
+    final serverPublicKey = row?['public_key'] as String?;
+    if (localPublicKey == null ||
+        (serverPublicKey != null && serverPublicKey != localPublicKey)) {
+      await _e2ee.replaceKeyPair();
+    }
+    final myPublicKey = await _e2ee.myPublicKeyBase64();
+    if (serverPublicKey != myPublicKey) {
+      await _client
+          .from('profiles')
+          .update({'public_key': myPublicKey})
+          .eq('id', uid)
+          .timeout(_kRpcTimeout);
+    }
+    _publicKeyReady = Future<void>.value();
 
     await _client
         .rpc(
@@ -222,12 +265,10 @@ class KeySyncService {
         .timeout(_kRpcTimeout);
 
     final newKey = _e2ee.generateSymmetricKey();
-    final myPublicKey = await _e2ee.myPublicKeyBase64();
     final sealedForSelf = await _e2ee.sealKeyFor(
       symmetricKey: newKey,
       recipientPublicKeyBase64: myPublicKey,
     );
-    final uid = _client.auth.currentUser!.id;
     await _client
         .rpc(
           'upload_key_wrap',
@@ -282,4 +323,19 @@ class KeySyncService {
       // specific encryption-sync message when connectivity is unavailable.
     }
   }
+}
+
+class EncryptionKeyUnavailableException implements Exception {
+  const EncryptionKeyUnavailableException();
+
+  @override
+  String toString() => 'Encryption key not ready';
+}
+
+class EncryptionKeyMissingOnDeviceException
+    extends EncryptionKeyUnavailableException {
+  const EncryptionKeyMissingOnDeviceException();
+
+  @override
+  String toString() => 'Encryption key missing on this device';
 }

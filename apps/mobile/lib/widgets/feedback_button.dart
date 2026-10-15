@@ -26,15 +26,37 @@ class FeedbackButton extends StatelessWidget {
 /// Compact header action that opens the feedback dialog — sits next to the
 /// search button on Messages and Home, and in the Profile header.
 class FeedbackIconButton extends StatelessWidget {
-  const FeedbackIconButton({super.key, required this.screen, this.color});
+  const FeedbackIconButton({
+    super.key,
+    required this.screen,
+    this.color,
+    this.chatId,
+    this.chatType,
+    this.chatName,
+    this.itemId,
+    this.keyState,
+  });
 
   final String screen;
   final Color? color;
+  final String? chatId;
+  final String? chatType;
+  final String? chatName;
+  final String? itemId;
+  final String? keyState;
 
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      onPressed: () => showFeedbackDialog(context, screen: screen),
+      onPressed: () => showFeedbackDialog(
+        context,
+        screen: screen,
+        chatId: chatId,
+        chatType: chatType,
+        chatName: chatName,
+        itemId: itemId,
+        keyState: keyState,
+      ),
       icon: Icon(Icons.feedback_outlined, color: color ?? context.vanam.ink),
       tooltip: 'Feedback',
     );
@@ -44,17 +66,41 @@ class FeedbackIconButton extends StatelessWidget {
 Future<void> showFeedbackDialog(
   BuildContext context, {
   required String screen,
+  String? chatId,
+  String? chatType,
+  String? chatName,
+  String? itemId,
+  String? keyState,
 }) {
   return showDialog<void>(
     context: context,
-    builder: (context) => _FeedbackDialog(screen: screen),
+    builder: (context) => _FeedbackDialog(
+      screen: screen,
+      chatId: chatId,
+      chatType: chatType,
+      chatName: chatName,
+      itemId: itemId,
+      keyState: keyState,
+    ),
   );
 }
 
 class _FeedbackDialog extends StatefulWidget {
-  const _FeedbackDialog({required this.screen});
+  const _FeedbackDialog({
+    required this.screen,
+    this.chatId,
+    this.chatType,
+    this.chatName,
+    this.itemId,
+    this.keyState,
+  });
 
   final String screen;
+  final String? chatId;
+  final String? chatType;
+  final String? chatName;
+  final String? itemId;
+  final String? keyState;
 
   @override
   State<_FeedbackDialog> createState() => _FeedbackDialogState();
@@ -103,6 +149,11 @@ class _FeedbackDialogState extends State<_FeedbackDialog> {
         name: _nameController.text,
         feedback: _feedbackController.text,
         screen: widget.screen,
+        chatId: widget.chatId,
+        chatType: widget.chatType,
+        chatName: widget.chatName,
+        itemId: widget.itemId,
+        keyState: widget.keyState,
       );
       await workManagerActivity.reportFeedbackSent();
       if (!mounted) return;

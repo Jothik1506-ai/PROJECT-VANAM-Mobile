@@ -59,10 +59,7 @@ class WorkManagerActivity {
   }
 
   Future<void> reportFeedbackSent() {
-    return _send(
-      profile: _lastProfile,
-      lastFeedbackAt: DateTime.now().toUtc(),
-    );
+    return _send(profile: _lastProfile, lastFeedbackAt: DateTime.now().toUtc());
   }
 
   Future<void> _send({

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../chat/direct_conversation.dart';
+import '../chat/chat_controller.dart';
+import '../chat/chat_message.dart';
 import '../chat/supabase_direct_chat_sync.dart';
 import '../models/conversation.dart';
 import '../theme/tokens.dart';
@@ -68,6 +70,20 @@ class _MessagesScreenState extends State<MessagesScreen> {
       _directConversationsFuture = _loadDirectConversations();
     });
     await _directConversationsFuture;
+  }
+
+  Conversation _familyConversation(Conversation fallback) {
+    for (final message in familyGroupChat.value.reversed) {
+      if (message.kind == ChatMessageKind.user && !message.isUnavailable) {
+        return Conversation(
+          name: fallback.name,
+          lastMessage: message.text,
+          timeLabel: '',
+          status: message.text,
+        );
+      }
+    }
+    return fallback;
   }
 
   @override
@@ -170,9 +186,13 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       children: [
                         for (final conversation in groupTiles)
                           RepaintBoundary(
-                            child: ConversationTile(
-                              conversation: conversation,
-                              isAdmin: widget.isAdmin,
+                            child: AnimatedBuilder(
+                              animation: familyGroupChat,
+                              builder: (context, _) => ConversationTile(
+                                conversation: _familyConversation(conversation),
+                                isAdmin: widget.isAdmin,
+                                onReturn: _refresh,
+                              ),
                             ),
                           ),
                         Divider(
@@ -222,6 +242,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                             RepaintBoundary(
                               child: DirectConversationTile(
                                 conversation: conversation,
+                                onReturn: _refresh,
                               ),
                             ),
                       ],

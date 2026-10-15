@@ -11,11 +11,16 @@ final profileController = ProfileController();
 class ProfileController extends ValueNotifier<UserProfile> {
   ProfileController() : super(const UserProfile());
 
-  static const _fileName = 'vanam_profile.json';
-
   bool _loaded = false;
+  String _accountId = 'signed-out';
 
-  Future<void> load() async {
+  Future<void> load({String? userId}) async {
+    final accountId = userId ?? 'signed-out';
+    if (_accountId != accountId) {
+      _loaded = false;
+      value = const UserProfile();
+      _accountId = accountId;
+    }
     if (_loaded) return;
     _loaded = true;
 
@@ -38,8 +43,15 @@ class ProfileController extends ValueNotifier<UserProfile> {
     await file.writeAsString(jsonEncode(profile.toJson()));
   }
 
+  void clearSession() {
+    _loaded = false;
+    _accountId = 'signed-out';
+    value = const UserProfile();
+  }
+
   Future<File> _profileFile() async {
     final directory = await getApplicationSupportDirectory();
-    return File('${directory.path}${Platform.pathSeparator}$_fileName');
+    final scopedName = 'vanam_profile_$_accountId.json';
+    return File('${directory.path}${Platform.pathSeparator}$scopedName');
   }
 }
