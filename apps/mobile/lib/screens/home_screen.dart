@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -1049,6 +1051,8 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
     super.dispose();
   }
 
+  /// Adds to the photos already chosen (up to the per-post limit) instead
+  /// of replacing them, so a post can be built up over several picks.
   Future<void> _pickPhotos() async {
     final picked = await _picker.pickMultiImage(
       imageQuality: 64,
@@ -1056,14 +1060,26 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
       maxHeight: 1280,
     );
     if (!mounted || picked.isEmpty) return;
+    const max = SupabaseHomeFeedRepository.maxPhotosPerPost;
+    final known = _photos.map((p) => p.path).toSet();
+    final combined = [
+      ..._photos,
+      for (final p in picked)
+        if (known.add(p.path)) p,
+    ];
     setState(() {
       _video = null; // Mutually exclusive with video in V1
-      _photos = picked
-          .take(SupabaseHomeFeedRepository.maxPhotosPerPost)
-          .toList();
-      _error = picked.length > SupabaseHomeFeedRepository.maxPhotosPerPost
-          ? 'Only the first 20 photos were added.'
+      _photos = combined.take(max).toList();
+      _error = combined.length > max
+          ? 'Only the first $max photos were added.'
           : null;
+    });
+  }
+
+  void _removePhotoAt(int index) {
+    setState(() {
+      _photos = [..._photos]..removeAt(index);
+      _error = null;
     });
   }
 
@@ -1174,37 +1190,128 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
               ],
             )
           else if (_photos.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: VanamSpacing.md,
-                vertical: VanamSpacing.sm,
-              ),
-              decoration: BoxDecoration(
-                color: palette.surfaceCard,
-                borderRadius: BorderRadius.circular(VanamRadii.field),
-                border: Border.all(color: palette.line),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.photo_library, color: palette.brand, size: 20),
-                  const SizedBox(width: VanamSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      '${_photos.length} photo${_photos.length == 1 ? '' : 's'} added',
-                      style: TextStyle(
-                        color: palette.ink,
-                        fontWeight: FontWeight.w600,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  height: 92,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _photos.length + 1,
+                    separatorBuilder: (_, _) =>
+                        const SizedBox(width: VanamSpacing.sm),
+                    itemBuilder: (context, i) {
+                      if (i == _photos.length) {
+                        final full =
+                            _photos.length >=
+                            SupabaseHomeFeedRepository.maxPhotosPerPost;
+                        return InkWell(
+                          onTap: _saving || full ? null : _pickPhotos,
+                          borderRadius: BorderRadius.circular(
+                            VanamRadii.field,
+                          ),
+                          child: Container(
+                            width: 92,
+                            decoration: BoxDecoration(
+                              color: palette.surfaceCard,
+                              borderRadius: BorderRadius.circular(
+                                VanamRadii.field,
+                              ),
+                              border: Border.all(color: palette.line),
+                            ),
+                            child: Icon(
+                              Icons.add_photo_alternate_outlined,
+                              color: full ? palette.inkMuted : palette.brand,
+                            ),
+                          ),
+                        );
+                      }
+                      return Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(
+                              VanamRadii.field,
+                            ),
+                            child: Image.file(
+                              File(_photos[i].path),
+                              width: 92,
+                              height: 92,
+                              fit: BoxFit.cover,
+                              cacheWidth: 200,
+                              errorBuilder: (_, _, _) => Container(
+                                width: 92,
+                                height: 92,
+                                color: palette.surfaceCard,
+                                child: Icon(
+                                  Icons.broken_image_outlined,
+                                  color: palette.inkMuted,
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            left: 4,
+                            top: 4,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${i + 1}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            right: 2,
+                            top: 2,
+                            child: InkResponse(
+                              onTap: _saving ? null : () => _removePhotoAt(i),
+                              child: const CircleAvatar(
+                                radius: 11,
+                                backgroundColor: Colors.black54,
+                                child: Icon(
+                                  Icons.close,
+                                  size: 14,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: VanamSpacing.xs),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${_photos.length} of '
+                        '${SupabaseHomeFeedRepository.maxPhotosPerPost} photos '
+                        '· swipe left to see them all',
+                        style: TextStyle(
+                          color: palette.inkMuted,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 18),
-                    onPressed: _saving ? null : _clearMedia,
-                    tooltip: 'Remove photos',
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ],
-              ),
+                    TextButton(
+                      onPressed: _saving ? null : _clearMedia,
+                      child: const Text('Remove all'),
+                    ),
+                  ],
+                ),
+              ],
             )
           else if (_video != null)
             Container(
