@@ -34,7 +34,9 @@ class _ReelsScreenState extends State<ReelsScreen> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _reels = _load());
+    setState(() {
+      _reels = _load();
+    });
     await _reels;
   }
 

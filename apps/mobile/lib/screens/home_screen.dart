@@ -70,7 +70,9 @@ class _HomeScreenState extends State<HomeScreen> {
   ) async {
     final current = await _posts;
     if (!mounted) return;
-    setState(() => _posts = Future.value(update(current)));
+    setState(() {
+      _posts = Future.value(update(current));
+    });
   }
 
   @override
