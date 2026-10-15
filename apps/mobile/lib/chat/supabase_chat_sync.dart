@@ -22,12 +22,21 @@ class SupabaseChatSync {
     return keySyncService.getScopeKey(scope: 'group', scopeId: 'family-group');
   }
 
+  /// Messages per page. The server returns the newest page; pass [before]
+  /// (the oldest sent_at already shown) to load the page before it.
+  static const pageSize = 100;
+
   Future<List<ChatMessage>> fetchMessages({
     String groupId = 'family-group',
+    DateTime? before,
   }) async {
     final rows = await _client.rpc<List<dynamic>>(
       'list_messages',
-      params: {'p_group_id': groupId, 'p_message_limit': 100},
+      params: {
+        'p_group_id': groupId,
+        'p_message_limit': pageSize,
+        if (before != null) 'p_before': before.toUtc().toIso8601String(),
+      },
     );
     final typed = rows.whereType<Map<String, dynamic>>().toList();
     var key = await _groupKey();
@@ -47,7 +56,8 @@ class SupabaseChatSync {
     // Old ciphertext whose key was intentionally discarded has no recovery
     // value. Do not keep rendering permanent encryption placeholders while
     // the family starts a fresh chat history.
-    return messages.where((message) => !message.isUnavailable).toList();
+    return messages.where((message) => !message.isUnavailable).toList()
+      ..sort((a, b) => a.sentAt.compareTo(b.sentAt));
   }
 
   Future<List<ChatMessage>> _decodeRows(

@@ -36,3 +36,9 @@
 - The 20261015090000 migration must be applied before shipping a build that
   can send attachments. Builds older than the attachment release show an
   attachment message as raw `vanam:att:1:{...}` text.
+
+## Chat history
+- `list_messages` / `list_direct_messages` return the NEWEST page and take
+  `p_before` for older pages (migration 20261015120000). Never go back to
+  `order by sent_at asc ... limit N`: that silently hides new messages once a
+  chat passes the limit.

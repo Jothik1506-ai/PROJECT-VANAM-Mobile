@@ -110,6 +110,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   bool _initialScrollDone = false;
   bool _initialScrollScheduled = false;
 
+  // "Load earlier messages": the server hands out the newest page, so
+  // scrolling to the top fetches the page before the oldest one shown.
+  bool _loadingOlder = false;
+  // Direct mode tracks this itself; family-group mode asks the controller.
+  bool _directHasOlder = false;
+
   /// The scope key this screen registers with activeChatTracker so a
   /// foreground push for this exact chat gets suppressed (see
   /// push_notification_service.dart) — same key shape the Edge Function's
@@ -122,6 +128,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   void initState() {
     super.initState();
     activeChatTracker.setActive(_activeScope);
+    _scrollController.addListener(_maybeLoadOlder);
     unawaited(
       CrashReporting.setContext(screen: 'Chat', chatScope: _activeScope),
     );
@@ -150,6 +157,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
     _pending.dispose();
     _textController.dispose();
+    _scrollController.removeListener(_maybeLoadOlder);
     _scrollController.dispose();
     super.dispose();
   }
@@ -197,6 +205,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       if (_disposed) return;
       if (initialRequestId == _refreshRequestId) {
         _messages.value = initialMessages;
+        _directHasOlder =
+            initialMessages.length >= SupabaseDirectChatSync.pageSize;
       }
       // Mark anything already sitting unread as read now that this screen
       // is open, then again after every realtime refresh — cheap/idempotent
@@ -215,7 +225,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             conversationId: conversationId,
           );
           if (_disposed || requestId != _refreshRequestId) return;
-          _messages.value = messages;
+          _messages.value = _mergeNewestPage(_messages.value, messages);
           unawaited(sync.markRead(conversationId));
         },
       );
@@ -449,6 +459,65 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _pending.value = _pending.value.where((m) => m.id != id).toList();
   }
 
+  /// Keeps already-loaded older pages when the newest page is refetched.
+  static List<ChatMessage> _mergeNewestPage(
+    List<ChatMessage> current,
+    List<ChatMessage> newest,
+  ) {
+    if (newest.isEmpty) return newest;
+    final cutoff = newest.first.sentAt;
+    final older = current.where((m) => m.sentAt.isBefore(cutoff));
+    return [...older, ...newest];
+  }
+
+  bool get _hasOlder => widget.mode == ChatDetailMode.familyGroup
+      ? widget._controller!.hasOlder
+      : _directHasOlder;
+
+  void _maybeLoadOlder() {
+    if (!_scrollController.hasClients || !_initialScrollDone) return;
+    if (_scrollController.position.pixels > 120) return;
+    unawaited(_loadOlder());
+  }
+
+  Future<void> _loadOlder() async {
+    if (_loadingOlder || !_hasOlder) return;
+    setState(() => _loadingOlder = true);
+    // Remember how far from the bottom we are so prepending doesn't jump.
+    final before = _scrollController.hasClients
+        ? _scrollController.position.maxScrollExtent -
+              _scrollController.position.pixels
+        : 0.0;
+    try {
+      if (widget.mode == ChatDetailMode.familyGroup) {
+        await widget._controller!.loadOlder();
+      } else {
+        final sync = _directSync;
+        final current = _messages.value;
+        if (sync == null || current.isEmpty) return;
+        final older = await sync.fetchMessages(
+          conversationId: widget.conversationId!,
+          before: current.first.sentAt,
+        );
+        if (_disposed) return;
+        _directHasOlder = older.length >= SupabaseDirectChatSync.pageSize;
+        final known = current.map((m) => m.id).toSet();
+        final fresh = older.where((m) => known.add(m.id)).toList();
+        if (fresh.isNotEmpty) _messages.value = [...fresh, ...current];
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scrollController.hasClients) return;
+        _scrollController.jumpTo(
+          _scrollController.position.maxScrollExtent - before,
+        );
+      });
+    } catch (_) {
+      // Leave the thread as is; scrolling up again retries.
+    } finally {
+      if (mounted) setState(() => _loadingOlder = false);
+    }
+  }
+
   void _handleMessagesChanged() {
     final shouldFollow = !_scrollController.hasClients || _isNearBottom;
     if (!shouldFollow) return;
@@ -652,9 +721,32 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 return ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(VanamSpacing.md),
-                  itemCount: messages.length,
+                  itemCount: messages.length + 1,
                   itemBuilder: (context, i) {
-                    final message = messages[i];
+                    if (i == 0) {
+                      if (_loadingOlder) {
+                        return const Padding(
+                          padding: EdgeInsets.all(VanamSpacing.sm),
+                          child: Center(
+                            child: SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        );
+                      }
+                      if (_hasOlder) {
+                        return Center(
+                          child: TextButton(
+                            onPressed: _loadOlder,
+                            child: const Text('Load earlier messages'),
+                          ),
+                        );
+                      }
+                      return const SizedBox(height: VanamSpacing.sm);
+                    }
+                    final message = messages[i - 1];
                     return RepaintBoundary(
                       child: message.kind == ChatMessageKind.system
                           ? _SystemEventNotice(message: message)

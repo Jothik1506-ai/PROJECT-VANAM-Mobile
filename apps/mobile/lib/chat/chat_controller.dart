@@ -71,8 +71,37 @@ class ChatController extends ValueNotifier<List<ChatMessage>> {
     if (sync == null) return;
 
     final remoteMessages = await sync.fetchMessages(groupId: groupId);
-    value = remoteMessages;
+    // The server returns the newest page only. Keep older pages the user
+    // already scrolled back to instead of dropping them on each refresh.
+    final newestKnown = remoteMessages.isEmpty
+        ? null
+        : remoteMessages.first.sentAt;
+    final older = newestKnown == null
+        ? const <ChatMessage>[]
+        : value.where((m) => m.sentAt.isBefore(newestKnown)).toList();
+    value = [...older, ...remoteMessages];
+    hasOlder = remoteMessages.length >= SupabaseChatSync.pageSize;
     await _persist();
+  }
+
+  /// Whether another page of history may exist before what's loaded.
+  bool hasOlder = false;
+
+  /// Loads the page before the oldest message shown. Returns how many were
+  /// added (0 means the start of the chat was reached).
+  Future<int> loadOlder() async {
+    final sync = _sync;
+    if (sync == null || value.isEmpty || !hasOlder) return 0;
+    final older = await sync.fetchMessages(
+      groupId: groupId,
+      before: value.first.sentAt,
+    );
+    hasOlder = older.length >= SupabaseChatSync.pageSize;
+    if (older.isEmpty) return 0;
+    final known = value.map((m) => m.id).toSet();
+    final fresh = older.where((m) => known.add(m.id)).toList();
+    value = [...fresh, ...value];
+    return fresh.length;
   }
 
   Future<void> sendLocalMessage({
