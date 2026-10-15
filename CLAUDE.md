@@ -18,7 +18,7 @@
   and manifest; `tool/play-release.ps1` builds the Play bundle.
 
 ## Releases
-- Current version: `1.0.0+28` in `apps/mobile/pubspec.yaml`. Bump the build
+- Current version: `1.0.1+29` in `apps/mobile/pubspec.yaml` (released on Google Play, Oct 2026). Bump the build
   number for every release; the OTA manifest lives in `vanam-ota-updates/` and must be updated
   with the new APK's URL and SHA-256 (see `docs/OTA-RELEASES.md`).
 - Backend is Supabase (`supabase/migrations/`); apply new migrations before

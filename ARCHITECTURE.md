@@ -4,7 +4,7 @@ Owner: Claude Code (architecture, acceptance criteria) → Codex (implementation
 Companion repo: `PROJECT-VANAM/Vanam web` (public web platform, festivals/content).
 This repo is standalone: private family app, not part of the public build.
 
-## Current state (build 28, Oct 2026) — read this first
+## Current state (build 29, Oct 2026) — read this first
 
 The sections below are the **original V1 plan** and are kept for history. The
 app has since grown well past it. Where they disagree, this section wins.
