@@ -29,3 +29,10 @@
 ## Chat encryption
 - Never auto-rotate a chat key on send; rotation deletes every member's key
   copy. Recovery is the explicit, confirmed "Reset" action in the chat screen.
+
+## Chat attachments
+- Files are encrypted on the phone with the chat key before upload (bucket
+  `chat-attachments` only holds ciphertext). Never upload a plaintext file.
+- The 20261015090000 migration must be applied before shipping a build that
+  can send attachments. Builds older than the attachment release show an
+  attachment message as raw `vanam:att:1:{...}` text.

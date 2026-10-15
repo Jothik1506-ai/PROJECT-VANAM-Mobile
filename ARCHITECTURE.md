@@ -15,6 +15,7 @@ app has since grown well past it. Where they disagree, this section wins.
 | Login | Invite code + one-time PIN | Admin-issued invite (code or QR), then **username + password**, with a one-time recovery code. |
 | Chat | Single family group, text only | Family group **and direct (1:1) chats**, E2EE, read receipts on direct chats, instant "pending" display and tap-to-retry for failed sends. |
 | Tabs | None in V1 | Bottom navigation: Reels / Messages / Home / Profile. |
+| Chat attachments | Not planned | Photos (several at once, camera) and documents up to 15 MB in both chat types. Files are **end-to-end encrypted on the phone** with the chat key and stored as ciphertext in the private `chat-attachments` bucket; the message pointing at a file is itself encrypted. See `supabase/migrations/20261015090000_chat_attachments.sql`. |
 | Home | Deferred | Family feed: photo and video posts (50MB / 60s cap, tap to play), reactions, comments, share, and 24-hour photo Stories. |
 | Notifications | Deferred | Firebase push notifications and an in-app notifications list. |
 | Distribution | Play Internal Testing | Google Play **and** a self-hosted signed APK with an in-app updater (`docs/OTA-RELEASES.md`, `vanam-ota-updates/`). |

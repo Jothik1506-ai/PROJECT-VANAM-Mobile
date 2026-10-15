@@ -1,3 +1,5 @@
+import 'chat_attachment.dart';
+
 class ChatMessage {
   const ChatMessage({
     required this.id,
@@ -36,6 +38,10 @@ class ChatMessage {
   static const waitingForKeyText = '🔒 Waiting for encryption key…';
   static const undecryptableText =
       '🔒 This message was sent with an earlier encryption key and can\'t be read';
+
+  /// The photo or document this message carries, if any. Parsed from the
+  /// decrypted body, so it needs no extra storage or schema.
+  ChatAttachment? get attachment => ChatAttachment.tryParse(text);
 
   bool get isUnavailable =>
       text == waitingForKeyText || text == undecryptableText;

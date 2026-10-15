@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../chat/attachment_picker.dart';
+import '../chat/attachment_service.dart';
+import '../chat/chat_attachment.dart';
 import '../chat/chat_controller.dart';
 import '../chat/chat_message.dart';
 import '../chat/supabase_chat_sync.dart';
@@ -12,6 +15,7 @@ import '../diagnostics/crash_reporting.dart';
 import '../notifications/active_chat_tracker.dart';
 import '../profile/profile_controller.dart';
 import '../theme/tokens.dart';
+import '../widgets/chat_attachment_view.dart';
 import '../widgets/feedback_button.dart';
 import 'admin_invites_screen.dart';
 
@@ -58,6 +62,17 @@ class ChatDetailScreen extends StatefulWidget {
 
 class _ChatDetailScreenState extends State<ChatDetailScreen> {
   final _textController = TextEditingController();
+
+  /// Files being sent, by pending-message id. Kept so a failed send can be
+  /// retried without picking the file again (or uploading it twice).
+  final _uploads = <String, PickedAttachment>{};
+
+  String get _scope =>
+      widget.mode == ChatDetailMode.familyGroup ? 'group' : 'direct';
+  String get _scopeId => widget.mode == ChatDetailMode.familyGroup
+      ? widget._controller!.groupId
+      : widget.conversationId!;
+
   final _scrollController = ScrollController();
 
   /// Family-group mode reads/writes through widget._controller directly
@@ -230,6 +245,82 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
   }
 
+  Future<void> _showAttachMenu() async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Photos'),
+              subtitle: const Text('Choose up to 10 from your gallery'),
+              onTap: () => Navigator.pop(context, 'gallery'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Camera'),
+              onTap: () => Navigator.pop(context, 'camera'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.insert_drive_file_outlined),
+              title: const Text('Document'),
+              subtitle: const Text('PDF, Word, Excel and more · up to 15 MB'),
+              onTap: () => Navigator.pop(context, 'document'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+
+    try {
+      final result = switch (choice) {
+        'gallery' => await AttachmentPicker.gallery(),
+        'camera' => await AttachmentPicker.camera(),
+        _ => await AttachmentPicker.documents(),
+      };
+      if (!mounted) return;
+      if (result.tooLarge > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result.tooLarge == 1
+                  ? 'One file was skipped: files can be up to 15 MB.'
+                  : '${result.tooLarge} files were skipped: files can be up to 15 MB.',
+            ),
+          ),
+        );
+      }
+      for (final item in result.items) {
+        unawaited(_sendAttachment(item));
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open your files.')),
+      );
+    }
+  }
+
+  /// Shows the attachment in the thread right away (clock icon), then
+  /// encrypts, uploads and sends it in the background.
+  Future<void> _sendAttachment(PickedAttachment item) async {
+    final pendingMessage = ChatMessage(
+      id: 'pending-${DateTime.now().microsecondsSinceEpoch}-${_uploads.length}',
+      senderName: profileController.value.displayName,
+      text: item.placeholderText,
+      sentAt: DateTime.now(),
+      isMine: true,
+      pending: true,
+    );
+    _uploads[pendingMessage.id] = item;
+    _pending.value = [..._pending.value, pendingMessage];
+    await _deliver(pendingMessage);
+  }
+
   Future<void> _send() async {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
@@ -255,11 +346,29 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     await _deliver(failed);
   }
 
-  void _discard(ChatMessage failed) => _removePending(failed.id);
+  void _discard(ChatMessage failed) {
+    final upload = _uploads.remove(failed.id);
+    final uploaded = upload?.uploaded;
+    if (uploaded != null) unawaited(chatAttachmentService.discard(uploaded));
+    _removePending(failed.id);
+  }
 
   Future<void> _deliver(ChatMessage pendingMessage) async {
-    final text = pendingMessage.text;
+    var text = pendingMessage.text;
+    final upload = _uploads[pendingMessage.id];
     try {
+      if (upload != null) {
+        // Upload once; a retry after a failed message send reuses the file.
+        upload.uploaded ??= await chatAttachmentService.upload(
+          scope: _scope,
+          scopeId: _scopeId,
+          bytes: upload.bytes,
+          name: upload.name,
+          mime: upload.mime,
+          kind: upload.kind,
+        );
+        text = upload.uploaded!.encode();
+      }
       if (widget.mode == ChatDetailMode.familyGroup) {
         await widget._controller!.sendLocalMessage(
           text: text,
@@ -281,8 +390,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           _messages.value = next;
         }
       }
+      _uploads.remove(pendingMessage.id);
       _removePending(pendingMessage.id);
     } catch (error, stack) {
+      if (error is AttachmentTooLargeException) {
+        _uploads.remove(pendingMessage.id);
+        _removePending(pendingMessage.id);
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(error.toString())));
+        }
+        return;
+      }
       unawaited(
         CrashReporting.recordError(error, stack, reason: 'chat_send_failed'),
       );
@@ -540,6 +660,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           ? _SystemEventNotice(message: message)
                           : _MessageBubble(
                               message: message,
+                              attachmentScope: _scope,
+                              attachmentScopeId: _scopeId,
                               onRetry: message.failed
                                   ? () => _retry(message)
                                   : null,
@@ -558,6 +680,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           _Composer(
             controller: _textController,
             onSend: _send,
+            onAttach: _showAttachMenu,
             hintText: widget.mode == ChatDetailMode.familyGroup
                 ? 'Message the family…'
                 : 'Message ${widget.groupName}…',
@@ -572,9 +695,15 @@ class _MessageBubble extends StatelessWidget {
   const _MessageBubble({
     required this.message,
     required this.showReadReceipt,
+    required this.attachmentScope,
+    required this.attachmentScopeId,
     this.onRetry,
     this.onDiscard,
   });
+
+  /// Which chat's key decrypts this message's photo or document.
+  final String attachmentScope;
+  final String attachmentScopeId;
 
   /// Only set for a message that failed to send: tap retries, long-press
   /// discards.
@@ -642,17 +771,24 @@ class _MessageBubble extends StatelessWidget {
                       ? null
                       : Border.all(color: palette.line),
                 ),
-                child: Text(
-                  message.text,
-                  style: TextStyle(
-                    color: message.isUnavailable && !message.isMine
-                        ? palette.inkMuted
-                        : textColor,
-                    fontStyle: message.isUnavailable
-                        ? FontStyle.italic
-                        : FontStyle.normal,
-                  ),
-                ),
+                child: message.attachment != null
+                    ? ChatAttachmentView(
+                        attachment: message.attachment!,
+                        scope: attachmentScope,
+                        scopeId: attachmentScopeId,
+                        textColor: textColor,
+                      )
+                    : Text(
+                        message.text,
+                        style: TextStyle(
+                          color: message.isUnavailable && !message.isMine
+                              ? palette.inkMuted
+                              : textColor,
+                          fontStyle: message.isUnavailable
+                              ? FontStyle.italic
+                              : FontStyle.normal,
+                        ),
+                      ),
               ),
             ),
           ),
@@ -743,11 +879,13 @@ class _Composer extends StatelessWidget {
   const _Composer({
     required this.controller,
     required this.onSend,
+    required this.onAttach,
     required this.hintText,
   });
 
   final TextEditingController controller;
   final VoidCallback onSend;
+  final VoidCallback onAttach;
   final String hintText;
 
   @override
@@ -768,6 +906,11 @@ class _Composer extends StatelessWidget {
         ),
         child: Row(
           children: [
+            IconButton(
+              onPressed: onAttach,
+              icon: Icon(Icons.attach_file, color: palette.inkMuted),
+              tooltip: 'Attach photos or documents',
+            ),
             Expanded(
               child: TextField(
                 controller: controller,

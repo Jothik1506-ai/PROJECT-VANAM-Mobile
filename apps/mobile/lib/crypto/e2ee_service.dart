@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -247,6 +248,24 @@ class E2eeService {
     }
   }
 
+  /// Encrypts a whole file with a chat scope's key. Output: 12-byte nonce ||
+  /// ciphertext || 16-byte tag, raw bytes. Runs in a background isolate so a
+  /// large file doesn't freeze the UI.
+  Future<Uint8List> encryptBytes({
+    required Uint8List bytes,
+    required Uint8List symmetricKey,
+  }) {
+    return Isolate.run(() => _encryptBytesSync(bytes, symmetricKey));
+  }
+
+  /// Reverses [encryptBytes]. Returns null when the data can't be opened.
+  Future<Uint8List?> decryptBytes({
+    required Uint8List packed,
+    required Uint8List symmetricKey,
+  }) {
+    return Isolate.run(() => _decryptBytesSync(packed, symmetricKey));
+  }
+
   Future<SecretKey> _deriveAesKey({
     required SecretKey sharedSecret,
     required List<int> ephemeralPublicKeyBytes,
@@ -257,5 +276,28 @@ class E2eeService {
       nonce: [...ephemeralPublicKeyBytes, ...recipientPublicKeyBytes],
       info: utf8.encode('vanam-sealed-box'),
     );
+  }
+}
+
+Future<Uint8List> _encryptBytesSync(Uint8List bytes, Uint8List key) async {
+  final aes = AesGcm.with256bits();
+  final nonce = aes.newNonce();
+  final box = await aes.encrypt(bytes, secretKey: SecretKey(key), nonce: nonce);
+  return Uint8List.fromList([...nonce, ...box.cipherText, ...box.mac.bytes]);
+}
+
+Future<Uint8List?> _decryptBytesSync(Uint8List packed, Uint8List key) async {
+  try {
+    if (packed.length < 12 + 16) return null;
+    final aes = AesGcm.with256bits();
+    final box = SecretBox(
+      packed.sublist(12, packed.length - 16),
+      nonce: packed.sublist(0, 12),
+      mac: Mac(packed.sublist(packed.length - 16)),
+    );
+    final plain = await aes.decrypt(box, secretKey: SecretKey(key));
+    return Uint8List.fromList(plain);
+  } catch (_) {
+    return null;
   }
 }
