@@ -39,12 +39,15 @@ class SupabaseDirectChatSync {
   /// Decrypts a conversation's last message for the chat list preview.
   /// Returns null when this device has no key yet or can't read it.
   Future<String?> decryptPreview(DirectConversation conversation) async {
-    final cipher = conversation.lastMessageText;
+    final cipher = conversation.lastMessageBody;
     if (cipher == null || cipher.isEmpty) return null;
     try {
       final key = await _conversationKey(conversation.conversationId);
       if (key == null) return null;
-      return _e2ee.decryptMessage(ciphertextBase64: cipher, symmetricKey: key);
+      return await _e2ee.decryptMessage(
+        ciphertextBase64: cipher,
+        symmetricKey: key,
+      );
     } catch (_) {
       return null;
     }
@@ -59,7 +62,7 @@ class SupabaseDirectChatSync {
     DateTime? before,
   }) async {
     final rows = await _client.rpc<List<dynamic>>(
-      'list_direct_messages',
+      'list_direct_messages_page',
       params: {
         'p_conversation_id': conversationId,
         'p_message_limit': pageSize,
@@ -84,7 +87,8 @@ class SupabaseDirectChatSync {
     // Old ciphertext whose key was intentionally discarded has no recovery
     // value. Do not keep rendering permanent encryption placeholders while
     // the participants start a fresh conversation.
-    return messages..sort((a, b) => a.sentAt.compareTo(b.sentAt));
+    return messages.where((message) => !message.isUnavailable).toList()
+      ..sort((a, b) => a.sentAt.compareTo(b.sentAt));
   }
 
   Future<List<ChatMessage>> _decodeRows(

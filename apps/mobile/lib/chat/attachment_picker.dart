@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -6,16 +5,22 @@ import 'package:image_picker/image_picker.dart';
 
 import 'chat_attachment.dart';
 
-/// A file the user chose to send, read into memory and ready to encrypt.
+/// A file the user chose to send. Its bytes are read only when it is
+/// about to be encrypted and uploaded, so a multi-file pick never holds
+/// every file in memory at once.
 class PickedAttachment {
   PickedAttachment({
-    required this.bytes,
+    required Future<Uint8List> Function() read,
     required this.name,
     required this.mime,
     required this.kind,
-  });
+  }) : _read = read;
 
-  final Uint8List bytes;
+  final Future<Uint8List> Function() _read;
+
+  /// Reads the file's bytes. Call right before encrypting; don't keep them.
+  Future<Uint8List> readBytes() => _read();
+
   final String name;
   final String mime;
   final ChatAttachmentKind kind;
@@ -53,7 +58,7 @@ class AttachmentPicker {
       maxWidth: 1600,
       maxHeight: 1600,
     );
-    return _fromXFiles(files.take(maxPerSend));
+    return _fromXFiles(files.take(maxPerSend), ChatAttachmentKind.image);
   }
 
   static Future<PickResult> camera() async {
@@ -63,49 +68,36 @@ class AttachmentPicker {
       maxWidth: 1600,
       maxHeight: 1600,
     );
-    return file == null ? PickResult.empty : _fromXFiles([file]);
+    return file == null
+        ? PickResult.empty
+        : _fromXFiles([file], ChatAttachmentKind.image);
   }
 
   /// Documents of any type (PDF, Word, Excel, text, ...).
   static Future<PickResult> documents() async {
-    final picked = await FilePicker.platform.pickFiles(allowMultiple: true);
-    if (picked == null) return PickResult.empty;
-
-    final items = <PickedAttachment>[];
-    var tooLarge = 0;
-    for (final file in picked.files.take(maxPerSend)) {
-      if (file.size > ChatAttachment.maxBytes) {
-        tooLarge++;
-        continue;
-      }
-      Uint8List? bytes = file.bytes;
-      final path = file.path;
-      if (bytes == null && path != null) bytes = await File(path).readAsBytes();
-      if (bytes == null) continue;
-      items.add(
-        PickedAttachment(
-          bytes: bytes,
-          name: file.name,
-          mime: mimeFor(file.name),
-          kind: ChatAttachmentKind.file,
-        ),
-      );
-    }
-    return PickResult(items, tooLarge: tooLarge);
+    // file_picker 13: pickFiles() is multi-select and returns an empty list
+    // when the user cancels. Each PlatformFile exposes an XFile, read lazily.
+    final picked = await FilePicker.pickFiles();
+    return _fromXFiles(
+      picked.take(maxPerSend).map((f) => f.xFile),
+      ChatAttachmentKind.file,
+    );
   }
 
-  static Future<PickResult> _fromXFiles(Iterable<XFile> files) async {
+  static Future<PickResult> _fromXFiles(
+    Iterable<XFile> files,
+    ChatAttachmentKind kind,
+  ) async {
     final items = <PickedAttachment>[];
     var tooLarge = 0;
     for (final file in files) {
-      final bytes = await file.readAsBytes();
-      if (bytes.length > ChatAttachment.maxBytes) {
+      if (await file.length() > ChatAttachment.maxBytes) {
         tooLarge++;
         continue;
       }
       items.add(
         PickedAttachment(
-          bytes: bytes,
+          read: file.readAsBytes,
           name: file.name,
           mime: mimeFor(file.name),
           kind: ChatAttachmentKind.image,

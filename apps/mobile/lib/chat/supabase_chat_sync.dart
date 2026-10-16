@@ -31,7 +31,7 @@ class SupabaseChatSync {
     DateTime? before,
   }) async {
     final rows = await _client.rpc<List<dynamic>>(
-      'list_messages',
+      'list_messages_page',
       params: {
         'p_group_id': groupId,
         'p_message_limit': pageSize,

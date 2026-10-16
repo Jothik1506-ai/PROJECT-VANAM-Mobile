@@ -45,7 +45,11 @@ class _ChatAttachmentViewState extends State<ChatAttachmentView> {
     attachment: widget.attachment,
   );
 
-  void _retryImage() => setState(() => _image = _load());
+  void _retryImage() {
+    setState(() {
+      _image = _load();
+    });
+  }
 
   Future<void> _openDocument() async {
     if (_opening) return;

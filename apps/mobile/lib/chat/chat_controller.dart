@@ -70,7 +70,9 @@ class ChatController extends ValueNotifier<List<ChatMessage>> {
     final sync = _sync;
     if (sync == null) return;
 
-    final remoteMessages = await sync.fetchMessages(groupId: groupId);
+    final remoteMessages = (await sync.fetchMessages(
+      groupId: groupId,
+    )).where((m) => !m.isUnavailable).toList();
     // The server returns the newest page only. Keep older pages the user
     // already scrolled back to instead of dropping them on each refresh.
     final newestKnown = remoteMessages.isEmpty
@@ -99,7 +101,9 @@ class ChatController extends ValueNotifier<List<ChatMessage>> {
     hasOlder = older.length >= SupabaseChatSync.pageSize;
     if (older.isEmpty) return 0;
     final known = value.map((m) => m.id).toSet();
-    final fresh = older.where((m) => known.add(m.id)).toList();
+    final fresh = older
+        .where((m) => !m.isUnavailable && known.add(m.id))
+        .toList();
     value = [...fresh, ...value];
     return fresh.length;
   }

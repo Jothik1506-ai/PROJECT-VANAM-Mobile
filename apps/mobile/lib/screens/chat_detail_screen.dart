@@ -5,7 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../chat/attachment_picker.dart';
 import '../chat/attachment_service.dart';
-import '../chat/chat_attachment.dart';
 import '../chat/chat_controller.dart';
 import '../chat/chat_message.dart';
 import '../chat/supabase_chat_sync.dart';
@@ -304,9 +303,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           ),
         );
       }
-      for (final item in result.items) {
-        unawaited(_sendAttachment(item));
-      }
+      unawaited(_sendAttachments(result.items));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -315,20 +312,29 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
   }
 
-  /// Shows the attachment in the thread right away (clock icon), then
-  /// encrypts, uploads and sends it in the background.
-  Future<void> _sendAttachment(PickedAttachment item) async {
-    final pendingMessage = ChatMessage(
-      id: 'pending-${DateTime.now().microsecondsSinceEpoch}-${_uploads.length}',
-      senderName: profileController.value.displayName,
-      text: item.placeholderText,
-      sentAt: DateTime.now(),
-      isMine: true,
-      pending: true,
-    );
-    _uploads[pendingMessage.id] = item;
-    _pending.value = [..._pending.value, pendingMessage];
-    await _deliver(pendingMessage);
+  /// Shows every picked attachment in the thread right away (clock icon),
+  /// then reads, encrypts, uploads and sends them one at a time so only one
+  /// file's bytes are in memory at once.
+  Future<void> _sendAttachments(List<PickedAttachment> items) async {
+    final queued = <ChatMessage>[];
+    for (final item in items) {
+      final pendingMessage = ChatMessage(
+        id: 'pending-${DateTime.now().microsecondsSinceEpoch}-${_uploads.length}',
+        senderName: profileController.value.displayName,
+        text: item.placeholderText,
+        sentAt: DateTime.now(),
+        isMine: true,
+        pending: true,
+      );
+      _uploads[pendingMessage.id] = item;
+      queued.add(pendingMessage);
+    }
+    if (queued.isEmpty) return;
+    _pending.value = [..._pending.value, ...queued];
+    for (final pendingMessage in queued) {
+      if (_disposed) return;
+      await _deliver(pendingMessage);
+    }
   }
 
   Future<void> _send() async {
@@ -372,7 +378,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         upload.uploaded ??= await chatAttachmentService.upload(
           scope: _scope,
           scopeId: _scopeId,
-          bytes: upload.bytes,
+          bytes: await upload.readBytes(),
           name: upload.name,
           mime: upload.mime,
           kind: upload.kind,
@@ -464,10 +470,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     List<ChatMessage> current,
     List<ChatMessage> newest,
   ) {
-    if (newest.isEmpty) return newest;
-    final cutoff = newest.first.sentAt;
-    final older = current.where((m) => m.sentAt.isBefore(cutoff));
-    return [...older, ...newest];
+    final readable = newest.where((m) => !m.isUnavailable).toList();
+    if (readable.isEmpty) return readable;
+    final cutoff = readable.first.sentAt;
+    final older = current.where(
+      (m) => m.sentAt.isBefore(cutoff) && !m.isUnavailable,
+    );
+    return [...older, ...readable];
   }
 
   bool get _hasOlder => widget.mode == ChatDetailMode.familyGroup
@@ -502,7 +511,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         if (_disposed) return;
         _directHasOlder = older.length >= SupabaseDirectChatSync.pageSize;
         final known = current.map((m) => m.id).toSet();
-        final fresh = older.where((m) => known.add(m.id)).toList();
+        final fresh = older
+            .where((m) => !m.isUnavailable && known.add(m.id))
+            .toList();
         if (fresh.isNotEmpty) _messages.value = [...fresh, ...current];
       }
       WidgetsBinding.instance.addPostFrameCallback((_) {

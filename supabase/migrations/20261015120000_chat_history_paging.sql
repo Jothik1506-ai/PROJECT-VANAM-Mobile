@@ -1,18 +1,22 @@
--- Chat history paging + richer chat list.
+-- Chat history paging + richer chat list. ADDITIVE ONLY: safe to apply at
+-- any time, before or after the app release that uses it.
 --
--- BUG FIX: list_messages / list_direct_messages ordered `sent_at asc` with a
--- limit, so once a chat passed 100 messages they returned the OLDEST 100
--- and newer messages never appeared. Both now return the NEWEST page and
--- accept p_before to fetch older pages ("load earlier messages"). The app
--- sorts each page ascending itself.
+-- BUG FIX: list_messages / list_direct_messages order `sent_at asc` with a
+-- limit, so once a chat passes 100 messages they return the OLDEST 100 and
+-- newer messages never appear. Installed apps (1.0.1+29 and earlier) call
+-- those functions and expect ascending order, so they are left exactly as
+-- they are. New apps call list_messages_page / list_direct_messages_page,
+-- which return the NEWEST page (newest first) and accept p_before to fetch
+-- older pages ("load earlier messages"). The app sorts each page itself.
 --
--- list_direct_conversations now returns the encrypted last message body
--- (so the phone can decrypt a real preview — "Photo", "sure, 6pm" — instead
--- of "New message") and an unread count for the badge. Nothing new is
--- readable by the server: the body is the same ciphertext the chat shows.
+-- list_direct_conversations keeps every existing column with its existing
+-- meaning (last_message_text is still the plain 'New message' placeholder)
+-- and gains three columns: last_message_body (the encrypted last message,
+-- base64, so the phone can decrypt a real preview), last_message_sender_id
+-- and unread_count. Nothing new is readable by the server: the body is the
+-- same ciphertext the chat shows.
 
-drop function if exists public.list_messages(text, integer);
-create or replace function public.list_messages(
+create or replace function public.list_messages_page(
   p_group_id text default 'family-group',
   p_message_limit integer default 100,
   p_before timestamptz default null
@@ -49,8 +53,7 @@ as $$
   limit greatest(1, least(p_message_limit, 500));
 $$;
 
-drop function if exists public.list_direct_messages(uuid, integer);
-create or replace function public.list_direct_messages(
+create or replace function public.list_direct_messages_page(
   p_conversation_id uuid,
   p_message_limit integer default 100,
   p_before timestamptz default null
@@ -87,6 +90,8 @@ as $$
   limit greatest(1, least(p_message_limit, 500));
 $$;
 
+-- The return type gains columns, so the function must be dropped and
+-- recreated; the existing columns keep their names, order and meanings.
 drop function if exists public.list_direct_conversations();
 create or replace function public.list_direct_conversations()
 returns table (
@@ -95,6 +100,7 @@ returns table (
   other_display_name text,
   last_message_text text,
   last_message_at timestamptz,
+  last_message_body text,
   last_message_sender_id uuid,
   unread_count integer
 )
@@ -107,8 +113,9 @@ as $$
     c.id as conversation_id,
     other_p.id as other_user_id,
     other_p.display_name as other_display_name,
-    encode(lm.body, 'base64') as last_message_text,
+    case when lm.sent_at is not null then 'New message' else null end as last_message_text,
     lm.sent_at as last_message_at,
+    encode(lm.body, 'base64') as last_message_body,
     lm.sender_id as last_message_sender_id,
     coalesce(unread.n, 0)::integer as unread_count
   from public.conversation_participants me
@@ -134,9 +141,9 @@ as $$
   order by coalesce(lm.sent_at, c.created_at) desc;
 $$;
 
-revoke all on function public.list_messages(text, integer, timestamptz) from public;
-revoke all on function public.list_direct_messages(uuid, integer, timestamptz) from public;
-revoke all on function public.list_direct_conversations() from public;
-grant execute on function public.list_messages(text, integer, timestamptz) to authenticated;
-grant execute on function public.list_direct_messages(uuid, integer, timestamptz) to authenticated;
+revoke all on function public.list_messages_page(text, integer, timestamptz) from public, anon;
+revoke all on function public.list_direct_messages_page(uuid, integer, timestamptz) from public, anon;
+revoke all on function public.list_direct_conversations() from public, anon;
+grant execute on function public.list_messages_page(text, integer, timestamptz) to authenticated;
+grant execute on function public.list_direct_messages_page(uuid, integer, timestamptz) to authenticated;
 grant execute on function public.list_direct_conversations() to authenticated;

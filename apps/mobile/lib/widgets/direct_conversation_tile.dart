@@ -39,14 +39,14 @@ class _DirectConversationTileState extends State<DirectConversationTile> {
   @override
   void didUpdateWidget(DirectConversationTile old) {
     super.didUpdateWidget(old);
-    if (old.conversation.lastMessageText != conversation.lastMessageText) {
+    if (old.conversation.lastMessageBody != conversation.lastMessageBody) {
       _preview = null;
       _loadPreview();
     }
   }
 
   Future<void> _loadPreview() async {
-    if (conversation.lastMessageText == null) return;
+    if (conversation.lastMessageBody == null) return;
     final sync = SupabaseDirectChatSync(Supabase.instance.client);
     final plain = await sync.decryptPreview(conversation);
     if (!mounted || plain == null) return;

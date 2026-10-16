@@ -34,7 +34,7 @@ class ChatAttachmentService {
   // Decrypted images already fetched in this app session, so scrolling a
   // chat doesn't download and decrypt the same photo again. Small on
   // purpose: photos are already compressed before sending.
-  static const _cacheLimit = 40;
+  static const _cacheLimit = 20;
   final _cache = <String, Uint8List>{};
 
   /// Encrypts [bytes] with the chat's key, uploads it, and returns the
