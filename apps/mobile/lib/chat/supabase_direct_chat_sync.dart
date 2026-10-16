@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../crypto/e2ee_service.dart';
 import '../crypto/key_sync_service.dart';
 import 'chat_message.dart';
+import 'chat_page.dart';
 import 'direct_conversation.dart';
 
 final supabaseDirectChatSync = SupabaseDirectChatSync(Supabase.instance.client);
@@ -36,12 +37,38 @@ class SupabaseDirectChatSync {
         .toList();
   }
 
-  Future<List<ChatMessage>> fetchMessages({
+  /// Decrypts a conversation's last message for the chat list preview.
+  /// Returns null when this device has no key yet or can't read it.
+  Future<String?> decryptPreview(DirectConversation conversation) async {
+    final cipher = conversation.lastMessageBody;
+    if (cipher == null || cipher.isEmpty) return null;
+    try {
+      final key = await _conversationKey(conversation.conversationId);
+      if (key == null) return null;
+      return await _e2ee.decryptMessage(
+        ciphertextBase64: cipher,
+        symmetricKey: key,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Messages per page. The server returns the newest page; pass [before]
+  /// (the previous page's raw-row cursor) to load the page before it.
+  static const pageSize = 100;
+
+  Future<ChatPage> fetchMessages({
     required String conversationId,
+    ChatPageCursor? before,
   }) async {
     final rows = await _client.rpc<List<dynamic>>(
-      'list_direct_messages',
-      params: {'p_conversation_id': conversationId, 'p_message_limit': 100},
+      'list_direct_messages_page',
+      params: {
+        'p_conversation_id': conversationId,
+        'p_message_limit': pageSize,
+        ...?before?.toParams(),
+      },
     );
     final typed = rows.whereType<Map<String, dynamic>>().toList();
     var key = await _conversationKey(conversationId);
@@ -61,7 +88,13 @@ class SupabaseDirectChatSync {
     // Old ciphertext whose key was intentionally discarded has no recovery
     // value. Do not keep rendering permanent encryption placeholders while
     // the participants start a fresh conversation.
-    return messages.where((message) => !message.isUnavailable).toList();
+    final paging = ChatPage.pagingFromRows(typed, pageSize);
+    return ChatPage(
+      messages: messages.where((message) => !message.isUnavailable).toList()
+        ..sort((a, b) => a.sentAt.compareTo(b.sentAt)),
+      hasOlder: paging.hasOlder,
+      cursor: paging.cursor,
+    );
   }
 
   Future<List<ChatMessage>> _decodeRows(

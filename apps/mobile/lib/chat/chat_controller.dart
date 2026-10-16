@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'chat_message.dart';
+import 'chat_page.dart';
 import 'supabase_chat_sync.dart';
 
 final familyGroupChat = ChatController(
@@ -58,6 +59,8 @@ class ChatController extends ValueNotifier<List<ChatMessage>> {
     _loaded = false;
     _accountId = 'signed-out';
     _sync = null;
+    _cursor = null;
+    hasOlder = false;
     value = const [];
   }
 
@@ -70,9 +73,57 @@ class ChatController extends ValueNotifier<List<ChatMessage>> {
     final sync = _sync;
     if (sync == null) return;
 
-    final remoteMessages = await sync.fetchMessages(groupId: groupId);
-    value = remoteMessages;
+    final page = await sync.fetchMessages(groupId: groupId);
+    final remoteMessages = page.messages
+        .where((m) => !m.isUnavailable)
+        .toList();
+    // An empty newest page with rows on the server (all filtered) must not
+    // wipe what is shown; only a truly empty server history clears it.
+    if (remoteMessages.isEmpty && page.cursor != null) {
+      hasOlder = page.hasOlder;
+      _cursor ??= page.cursor;
+      return;
+    }
+    // The server returns the newest page only. Keep older pages the user
+    // already scrolled back to instead of dropping them on each refresh.
+    final newestKnown = remoteMessages.isEmpty
+        ? null
+        : remoteMessages.first.sentAt;
+    final older = newestKnown == null
+        ? const <ChatMessage>[]
+        : value.where((m) => m.sentAt.isBefore(newestKnown)).toList();
+    value = [...older, ...remoteMessages];
+    // Keep the deeper cursor if older pages were already loaded.
+    if (older.isEmpty) {
+      hasOlder = page.hasOlder;
+      _cursor = page.cursor;
+    }
     await _persist();
+  }
+
+  /// Whether another page of history may exist before what's loaded.
+  bool hasOlder = false;
+
+  /// Oldest raw server row loaded so far (may be a filtered-out message).
+  ChatPageCursor? _cursor;
+
+  /// Loads the page before the oldest message shown. Returns how many were
+  /// added (0 means the start of the chat was reached).
+  Future<int> loadOlder() async {
+    final sync = _sync;
+    final cursor = _cursor;
+    if (sync == null || cursor == null || !hasOlder) return 0;
+    final page = await sync.fetchMessages(groupId: groupId, before: cursor);
+    hasOlder = page.hasOlder;
+    if (page.cursor != null) _cursor = page.cursor;
+    final older = page.messages;
+    if (older.isEmpty) return 0;
+    final known = value.map((m) => m.id).toSet();
+    final fresh = older
+        .where((m) => !m.isUnavailable && known.add(m.id))
+        .toList();
+    value = [...fresh, ...value];
+    return fresh.length;
   }
 
   Future<void> sendLocalMessage({
