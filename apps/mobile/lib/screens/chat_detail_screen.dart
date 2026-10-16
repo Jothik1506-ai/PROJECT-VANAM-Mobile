@@ -7,6 +7,7 @@ import '../chat/attachment_picker.dart';
 import '../chat/attachment_service.dart';
 import '../chat/chat_controller.dart';
 import '../chat/chat_message.dart';
+import '../chat/chat_page.dart';
 import '../chat/supabase_chat_sync.dart';
 import '../chat/supabase_direct_chat_sync.dart';
 import '../crypto/key_sync_service.dart';
@@ -114,6 +115,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   bool _loadingOlder = false;
   // Direct mode tracks this itself; family-group mode asks the controller.
   bool _directHasOlder = false;
+  ChatPageCursor? _directCursor;
+  bool _directLoadedOlder = false;
 
   /// The scope key this screen registers with activeChatTracker so a
   /// foreground push for this exact chat gets suppressed (see
@@ -195,7 +198,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       final conversationId = widget.conversationId!;
       final sync = SupabaseDirectChatSync(client);
       final initialRequestId = ++_refreshRequestId;
-      final initialMessages = await sync.fetchMessages(
+      final initialPage = await sync.fetchMessages(
         conversationId: conversationId,
       );
       // _messages is disposed in dispose() for direct mode — a screen
@@ -203,9 +206,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       // it afterward.
       if (_disposed) return;
       if (initialRequestId == _refreshRequestId) {
-        _messages.value = initialMessages;
-        _directHasOlder =
-            initialMessages.length >= SupabaseDirectChatSync.pageSize;
+        _messages.value = initialPage.messages;
+        _directHasOlder = initialPage.hasOlder;
+        _directCursor = initialPage.cursor;
       }
       // Mark anything already sitting unread as read now that this screen
       // is open, then again after every realtime refresh — cheap/idempotent
@@ -220,11 +223,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           // stale response clobber a newer one — only the response
           // matching the most recently *started* request gets applied.
           final requestId = ++_refreshRequestId;
-          final messages = await sync.fetchMessages(
-            conversationId: conversationId,
-          );
+          final page = await sync.fetchMessages(conversationId: conversationId);
           if (_disposed || requestId != _refreshRequestId) return;
-          _messages.value = _mergeNewestPage(_messages.value, messages);
+          _messages.value = ChatPage.mergeNewest(
+            _messages.value,
+            page.messages,
+            serverEmpty: page.cursor == null,
+          );
+          // Once older pages are loaded, keep their deeper cursor.
+          if (!_directLoadedOlder) {
+            _directCursor = page.cursor;
+            _directHasOlder = page.hasOlder;
+          }
           unawaited(sync.markRead(conversationId));
         },
       );
@@ -465,20 +475,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _pending.value = _pending.value.where((m) => m.id != id).toList();
   }
 
-  /// Keeps already-loaded older pages when the newest page is refetched.
-  static List<ChatMessage> _mergeNewestPage(
-    List<ChatMessage> current,
-    List<ChatMessage> newest,
-  ) {
-    final readable = newest.where((m) => !m.isUnavailable).toList();
-    if (readable.isEmpty) return readable;
-    final cutoff = readable.first.sentAt;
-    final older = current.where(
-      (m) => m.sentAt.isBefore(cutoff) && !m.isUnavailable,
-    );
-    return [...older, ...readable];
-  }
-
   bool get _hasOlder => widget.mode == ChatDetailMode.familyGroup
       ? widget._controller!.hasOlder
       : _directHasOlder;
@@ -502,14 +498,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         await widget._controller!.loadOlder();
       } else {
         final sync = _directSync;
-        final current = _messages.value;
-        if (sync == null || current.isEmpty) return;
-        final older = await sync.fetchMessages(
+        final cursor = _directCursor;
+        if (sync == null || cursor == null) return;
+        final page = await sync.fetchMessages(
           conversationId: widget.conversationId!,
-          before: current.first.sentAt,
+          before: cursor,
         );
         if (_disposed) return;
-        _directHasOlder = older.length >= SupabaseDirectChatSync.pageSize;
+        _directHasOlder = page.hasOlder;
+        if (page.cursor != null) {
+          _directCursor = page.cursor;
+          _directLoadedOlder = true;
+        }
+        final current = _messages.value;
+        final older = page.messages;
         final known = current.map((m) => m.id).toSet();
         final fresh = older
             .where((m) => !m.isUnavailable && known.add(m.id))

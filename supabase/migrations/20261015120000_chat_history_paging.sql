@@ -6,8 +6,8 @@
 -- newer messages never appear. Installed apps (1.0.1+29 and earlier) call
 -- those functions and expect ascending order, so they are left exactly as
 -- they are. New apps call list_messages_page / list_direct_messages_page,
--- which return the NEWEST page (newest first) and accept p_before to fetch
--- older pages ("load earlier messages"). The app sorts each page itself.
+-- which return the NEWEST page (newest first) and accept p_before (+ p_before_id
+-- as a tiebreaker for equal sent_at) to fetch older pages ("load earlier messages"). The app sorts each page itself.
 --
 -- list_direct_conversations keeps every existing column with its existing
 -- meaning (last_message_text is still the plain 'New message' placeholder)
@@ -19,7 +19,8 @@
 create or replace function public.list_messages_page(
   p_group_id text default 'family-group',
   p_message_limit integer default 100,
-  p_before timestamptz default null
+  p_before timestamptz default null,
+  p_before_id uuid default null
 )
 returns table (
   id uuid,
@@ -48,15 +49,20 @@ as $$
   where
     public.is_active_member()
     and m.group_id = p_group_id
-    and (p_before is null or m.sent_at < p_before)
-  order by m.sent_at desc
+    and (
+      p_before is null
+      or (p_before_id is null and m.sent_at < p_before)
+      or (p_before_id is not null and (m.sent_at, m.id) < (p_before, p_before_id))
+    )
+  order by m.sent_at desc, m.id desc
   limit greatest(1, least(p_message_limit, 500));
 $$;
 
 create or replace function public.list_direct_messages_page(
   p_conversation_id uuid,
   p_message_limit integer default 100,
-  p_before timestamptz default null
+  p_before timestamptz default null,
+  p_before_id uuid default null
 )
 returns table (
   id uuid,
@@ -85,8 +91,12 @@ as $$
   where
     public.is_conversation_participant(p_conversation_id)
     and dm.conversation_id = p_conversation_id
-    and (p_before is null or dm.sent_at < p_before)
-  order by dm.sent_at desc
+    and (
+      p_before is null
+      or (p_before_id is null and dm.sent_at < p_before)
+      or (p_before_id is not null and (dm.sent_at, dm.id) < (p_before, p_before_id))
+    )
+  order by dm.sent_at desc, dm.id desc
   limit greatest(1, least(p_message_limit, 500));
 $$;
 
@@ -141,9 +151,9 @@ as $$
   order by coalesce(lm.sent_at, c.created_at) desc;
 $$;
 
-revoke all on function public.list_messages_page(text, integer, timestamptz) from public, anon;
-revoke all on function public.list_direct_messages_page(uuid, integer, timestamptz) from public, anon;
+revoke all on function public.list_messages_page(text, integer, timestamptz, uuid) from public, anon;
+revoke all on function public.list_direct_messages_page(uuid, integer, timestamptz, uuid) from public, anon;
 revoke all on function public.list_direct_conversations() from public, anon;
-grant execute on function public.list_messages_page(text, integer, timestamptz) to authenticated;
-grant execute on function public.list_direct_messages_page(uuid, integer, timestamptz) to authenticated;
+grant execute on function public.list_messages_page(text, integer, timestamptz, uuid) to authenticated;
+grant execute on function public.list_direct_messages_page(uuid, integer, timestamptz, uuid) to authenticated;
 grant execute on function public.list_direct_conversations() to authenticated;

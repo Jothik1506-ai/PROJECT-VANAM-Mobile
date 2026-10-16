@@ -1,6 +1,5 @@
-import 'dart:typed_data';
-
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'chat_attachment.dart';
@@ -58,7 +57,7 @@ class AttachmentPicker {
       maxWidth: 1600,
       maxHeight: 1600,
     );
-    return _fromXFiles(files.take(maxPerSend), ChatAttachmentKind.image);
+    return fromXFiles(files.take(maxPerSend), ChatAttachmentKind.image);
   }
 
   static Future<PickResult> camera() async {
@@ -70,7 +69,7 @@ class AttachmentPicker {
     );
     return file == null
         ? PickResult.empty
-        : _fromXFiles([file], ChatAttachmentKind.image);
+        : fromXFiles([file], ChatAttachmentKind.image);
   }
 
   /// Documents of any type (PDF, Word, Excel, text, ...).
@@ -78,13 +77,14 @@ class AttachmentPicker {
     // file_picker 13: pickFiles() is multi-select and returns an empty list
     // when the user cancels. Each PlatformFile exposes an XFile, read lazily.
     final picked = await FilePicker.pickFiles();
-    return _fromXFiles(
+    return fromXFiles(
       picked.take(maxPerSend).map((f) => f.xFile),
       ChatAttachmentKind.file,
     );
   }
 
-  static Future<PickResult> _fromXFiles(
+  @visibleForTesting
+  static Future<PickResult> fromXFiles(
     Iterable<XFile> files,
     ChatAttachmentKind kind,
   ) async {
@@ -100,7 +100,7 @@ class AttachmentPicker {
           read: file.readAsBytes,
           name: file.name,
           mime: mimeFor(file.name),
-          kind: ChatAttachmentKind.image,
+          kind: kind,
         ),
       );
     }
