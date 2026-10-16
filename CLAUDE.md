@@ -18,7 +18,7 @@
   and manifest; `tool/play-release.ps1` builds the Play bundle.
 
 ## Releases
-- Current version: `1.0.0+28` in `apps/mobile/pubspec.yaml`. Bump the build
+- Current version: `1.0.1+29` in `apps/mobile/pubspec.yaml` (released on Google Play, Oct 2026). Bump the build
   number for every release; the OTA manifest lives in `vanam-ota-updates/` and must be updated
   with the new APK's URL and SHA-256 (see `docs/OTA-RELEASES.md`).
 - Backend is Supabase (`supabase/migrations/`); apply new migrations before
@@ -29,3 +29,16 @@
 ## Chat encryption
 - Never auto-rotate a chat key on send; rotation deletes every member's key
   copy. Recovery is the explicit, confirmed "Reset" action in the chat screen.
+
+## Chat attachments
+- Files are encrypted on the phone with the chat key before upload (bucket
+  `chat-attachments` only holds ciphertext). Never upload a plaintext file.
+- The 20261015090000 migration must be applied before shipping a build that
+  can send attachments. Builds older than the attachment release show an
+  attachment message as raw `vanam:att:1:{...}` text.
+
+## Chat history
+- `list_messages` / `list_direct_messages` return the NEWEST page and take
+  `p_before` for older pages (migration 20261015120000). Never go back to
+  `order by sent_at asc ... limit N`: that silently hides new messages once a
+  chat passes the limit.

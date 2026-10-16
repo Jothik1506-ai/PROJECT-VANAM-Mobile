@@ -36,12 +36,35 @@ class SupabaseDirectChatSync {
         .toList();
   }
 
+  /// Decrypts a conversation's last message for the chat list preview.
+  /// Returns null when this device has no key yet or can't read it.
+  Future<String?> decryptPreview(DirectConversation conversation) async {
+    final cipher = conversation.lastMessageText;
+    if (cipher == null || cipher.isEmpty) return null;
+    try {
+      final key = await _conversationKey(conversation.conversationId);
+      if (key == null) return null;
+      return _e2ee.decryptMessage(ciphertextBase64: cipher, symmetricKey: key);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Messages per page. The server returns the newest page; pass [before]
+  /// (the oldest sent_at already shown) to load the page before it.
+  static const pageSize = 100;
+
   Future<List<ChatMessage>> fetchMessages({
     required String conversationId,
+    DateTime? before,
   }) async {
     final rows = await _client.rpc<List<dynamic>>(
       'list_direct_messages',
-      params: {'p_conversation_id': conversationId, 'p_message_limit': 100},
+      params: {
+        'p_conversation_id': conversationId,
+        'p_message_limit': pageSize,
+        if (before != null) 'p_before': before.toUtc().toIso8601String(),
+      },
     );
     final typed = rows.whereType<Map<String, dynamic>>().toList();
     var key = await _conversationKey(conversationId);
@@ -61,7 +84,7 @@ class SupabaseDirectChatSync {
     // Old ciphertext whose key was intentionally discarded has no recovery
     // value. Do not keep rendering permanent encryption placeholders while
     // the participants start a fresh conversation.
-    return messages.where((message) => !message.isUnavailable).toList();
+    return messages..sort((a, b) => a.sentAt.compareTo(b.sentAt));
   }
 
   Future<List<ChatMessage>> _decodeRows(

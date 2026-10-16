@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../chat/chat_attachment.dart';
 import '../chat/direct_conversation.dart';
+import '../chat/supabase_direct_chat_sync.dart';
 import '../screens/chat_detail_screen.dart';
 import '../theme/tokens.dart';
 import 'member_avatar.dart';
@@ -8,7 +12,7 @@ import 'member_avatar.dart';
 /// A real, Supabase-backed direct-chat row — the other member's actual
 /// display name (never a relation label), a preview of the last message if
 /// any, and a tap target that opens the real per-pair chat thread.
-class DirectConversationTile extends StatelessWidget {
+class DirectConversationTile extends StatefulWidget {
   const DirectConversationTile({
     super.key,
     required this.conversation,
@@ -19,11 +23,48 @@ class DirectConversationTile extends StatelessWidget {
   final Future<void> Function()? onReturn;
 
   @override
+  State<DirectConversationTile> createState() => _DirectConversationTileState();
+}
+
+class _DirectConversationTileState extends State<DirectConversationTile> {
+  DirectConversation get conversation => widget.conversation;
+  String? _preview;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreview();
+  }
+
+  @override
+  void didUpdateWidget(DirectConversationTile old) {
+    super.didUpdateWidget(old);
+    if (old.conversation.lastMessageText != conversation.lastMessageText) {
+      _preview = null;
+      _loadPreview();
+    }
+  }
+
+  Future<void> _loadPreview() async {
+    if (conversation.lastMessageText == null) return;
+    final sync = SupabaseDirectChatSync(Supabase.instance.client);
+    final plain = await sync.decryptPreview(conversation);
+    if (!mounted || plain == null) return;
+    final attachment = ChatAttachment.tryParse(plain);
+    final text = attachment?.previewLabel ?? plain.replaceAll('\n', ' ');
+    final mine =
+        conversation.lastMessageSenderId != null &&
+        conversation.lastMessageSenderId ==
+            Supabase.instance.client.auth.currentUser?.id;
+    setState(() => _preview = mine ? 'You: $text' : text);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final palette = context.vanam;
     final preview = conversation.lastMessageAt == null
         ? 'Say hello!'
-        : 'Encrypted message';
+        : (_preview ?? 'Encrypted message');
 
     return InkWell(
       onTap: () async {
@@ -35,7 +76,7 @@ class DirectConversationTile extends StatelessWidget {
             ),
           ),
         );
-        await onReturn?.call();
+        await widget.onReturn?.call();
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(

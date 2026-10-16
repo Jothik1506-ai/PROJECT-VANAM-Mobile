@@ -9,6 +9,7 @@ class DirectConversation {
     required this.otherDisplayName,
     this.lastMessageText,
     this.lastMessageAt,
+    this.lastMessageSenderId,
     this.unreadCount = 0,
   });
 
@@ -17,6 +18,9 @@ class DirectConversation {
   final String otherDisplayName;
   final String? lastMessageText;
   final DateTime? lastMessageAt;
+
+  /// Who sent the last message — lets the list prefix "You: ".
+  final String? lastMessageSenderId;
   final int unreadCount;
 
   factory DirectConversation.fromJson(Map<String, dynamic> json) {
@@ -29,6 +33,7 @@ class DirectConversation {
       lastMessageAt: DateTime.tryParse(
         json['last_message_at'] as String? ?? '',
       ),
+      lastMessageSenderId: json['last_message_sender_id'] as String?,
       unreadCount: json['unread_count'] as int? ?? 0,
     );
   }

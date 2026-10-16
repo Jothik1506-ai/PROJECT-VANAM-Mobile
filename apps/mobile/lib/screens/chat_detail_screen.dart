@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../chat/attachment_picker.dart';
+import '../chat/attachment_service.dart';
+import '../chat/chat_attachment.dart';
 import '../chat/chat_controller.dart';
 import '../chat/chat_message.dart';
 import '../chat/supabase_chat_sync.dart';
@@ -12,6 +15,7 @@ import '../diagnostics/crash_reporting.dart';
 import '../notifications/active_chat_tracker.dart';
 import '../profile/profile_controller.dart';
 import '../theme/tokens.dart';
+import '../widgets/chat_attachment_view.dart';
 import '../widgets/feedback_button.dart';
 import 'admin_invites_screen.dart';
 
@@ -58,6 +62,17 @@ class ChatDetailScreen extends StatefulWidget {
 
 class _ChatDetailScreenState extends State<ChatDetailScreen> {
   final _textController = TextEditingController();
+
+  /// Files being sent, by pending-message id. Kept so a failed send can be
+  /// retried without picking the file again (or uploading it twice).
+  final _uploads = <String, PickedAttachment>{};
+
+  String get _scope =>
+      widget.mode == ChatDetailMode.familyGroup ? 'group' : 'direct';
+  String get _scopeId => widget.mode == ChatDetailMode.familyGroup
+      ? widget._controller!.groupId
+      : widget.conversationId!;
+
   final _scrollController = ScrollController();
 
   /// Family-group mode reads/writes through widget._controller directly
@@ -95,6 +110,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   bool _initialScrollDone = false;
   bool _initialScrollScheduled = false;
 
+  // "Load earlier messages": the server hands out the newest page, so
+  // scrolling to the top fetches the page before the oldest one shown.
+  bool _loadingOlder = false;
+  // Direct mode tracks this itself; family-group mode asks the controller.
+  bool _directHasOlder = false;
+
   /// The scope key this screen registers with activeChatTracker so a
   /// foreground push for this exact chat gets suppressed (see
   /// push_notification_service.dart) — same key shape the Edge Function's
@@ -107,6 +128,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   void initState() {
     super.initState();
     activeChatTracker.setActive(_activeScope);
+    _scrollController.addListener(_maybeLoadOlder);
     unawaited(
       CrashReporting.setContext(screen: 'Chat', chatScope: _activeScope),
     );
@@ -135,6 +157,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
     _pending.dispose();
     _textController.dispose();
+    _scrollController.removeListener(_maybeLoadOlder);
     _scrollController.dispose();
     super.dispose();
   }
@@ -182,6 +205,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       if (_disposed) return;
       if (initialRequestId == _refreshRequestId) {
         _messages.value = initialMessages;
+        _directHasOlder =
+            initialMessages.length >= SupabaseDirectChatSync.pageSize;
       }
       // Mark anything already sitting unread as read now that this screen
       // is open, then again after every realtime refresh — cheap/idempotent
@@ -200,7 +225,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             conversationId: conversationId,
           );
           if (_disposed || requestId != _refreshRequestId) return;
-          _messages.value = messages;
+          _messages.value = _mergeNewestPage(_messages.value, messages);
           unawaited(sync.markRead(conversationId));
         },
       );
@@ -230,6 +255,82 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
   }
 
+  Future<void> _showAttachMenu() async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Photos'),
+              subtitle: const Text('Choose up to 10 from your gallery'),
+              onTap: () => Navigator.pop(context, 'gallery'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Camera'),
+              onTap: () => Navigator.pop(context, 'camera'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.insert_drive_file_outlined),
+              title: const Text('Document'),
+              subtitle: const Text('PDF, Word, Excel and more · up to 15 MB'),
+              onTap: () => Navigator.pop(context, 'document'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+
+    try {
+      final result = switch (choice) {
+        'gallery' => await AttachmentPicker.gallery(),
+        'camera' => await AttachmentPicker.camera(),
+        _ => await AttachmentPicker.documents(),
+      };
+      if (!mounted) return;
+      if (result.tooLarge > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result.tooLarge == 1
+                  ? 'One file was skipped: files can be up to 15 MB.'
+                  : '${result.tooLarge} files were skipped: files can be up to 15 MB.',
+            ),
+          ),
+        );
+      }
+      for (final item in result.items) {
+        unawaited(_sendAttachment(item));
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open your files.')),
+      );
+    }
+  }
+
+  /// Shows the attachment in the thread right away (clock icon), then
+  /// encrypts, uploads and sends it in the background.
+  Future<void> _sendAttachment(PickedAttachment item) async {
+    final pendingMessage = ChatMessage(
+      id: 'pending-${DateTime.now().microsecondsSinceEpoch}-${_uploads.length}',
+      senderName: profileController.value.displayName,
+      text: item.placeholderText,
+      sentAt: DateTime.now(),
+      isMine: true,
+      pending: true,
+    );
+    _uploads[pendingMessage.id] = item;
+    _pending.value = [..._pending.value, pendingMessage];
+    await _deliver(pendingMessage);
+  }
+
   Future<void> _send() async {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
@@ -255,11 +356,29 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     await _deliver(failed);
   }
 
-  void _discard(ChatMessage failed) => _removePending(failed.id);
+  void _discard(ChatMessage failed) {
+    final upload = _uploads.remove(failed.id);
+    final uploaded = upload?.uploaded;
+    if (uploaded != null) unawaited(chatAttachmentService.discard(uploaded));
+    _removePending(failed.id);
+  }
 
   Future<void> _deliver(ChatMessage pendingMessage) async {
-    final text = pendingMessage.text;
+    var text = pendingMessage.text;
+    final upload = _uploads[pendingMessage.id];
     try {
+      if (upload != null) {
+        // Upload once; a retry after a failed message send reuses the file.
+        upload.uploaded ??= await chatAttachmentService.upload(
+          scope: _scope,
+          scopeId: _scopeId,
+          bytes: upload.bytes,
+          name: upload.name,
+          mime: upload.mime,
+          kind: upload.kind,
+        );
+        text = upload.uploaded!.encode();
+      }
       if (widget.mode == ChatDetailMode.familyGroup) {
         await widget._controller!.sendLocalMessage(
           text: text,
@@ -281,8 +400,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           _messages.value = next;
         }
       }
+      _uploads.remove(pendingMessage.id);
       _removePending(pendingMessage.id);
     } catch (error, stack) {
+      if (error is AttachmentTooLargeException) {
+        _uploads.remove(pendingMessage.id);
+        _removePending(pendingMessage.id);
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(error.toString())));
+        }
+        return;
+      }
       unawaited(
         CrashReporting.recordError(error, stack, reason: 'chat_send_failed'),
       );
@@ -327,6 +457,65 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   void _removePending(String id) {
     if (_disposed) return;
     _pending.value = _pending.value.where((m) => m.id != id).toList();
+  }
+
+  /// Keeps already-loaded older pages when the newest page is refetched.
+  static List<ChatMessage> _mergeNewestPage(
+    List<ChatMessage> current,
+    List<ChatMessage> newest,
+  ) {
+    if (newest.isEmpty) return newest;
+    final cutoff = newest.first.sentAt;
+    final older = current.where((m) => m.sentAt.isBefore(cutoff));
+    return [...older, ...newest];
+  }
+
+  bool get _hasOlder => widget.mode == ChatDetailMode.familyGroup
+      ? widget._controller!.hasOlder
+      : _directHasOlder;
+
+  void _maybeLoadOlder() {
+    if (!_scrollController.hasClients || !_initialScrollDone) return;
+    if (_scrollController.position.pixels > 120) return;
+    unawaited(_loadOlder());
+  }
+
+  Future<void> _loadOlder() async {
+    if (_loadingOlder || !_hasOlder) return;
+    setState(() => _loadingOlder = true);
+    // Remember how far from the bottom we are so prepending doesn't jump.
+    final before = _scrollController.hasClients
+        ? _scrollController.position.maxScrollExtent -
+              _scrollController.position.pixels
+        : 0.0;
+    try {
+      if (widget.mode == ChatDetailMode.familyGroup) {
+        await widget._controller!.loadOlder();
+      } else {
+        final sync = _directSync;
+        final current = _messages.value;
+        if (sync == null || current.isEmpty) return;
+        final older = await sync.fetchMessages(
+          conversationId: widget.conversationId!,
+          before: current.first.sentAt,
+        );
+        if (_disposed) return;
+        _directHasOlder = older.length >= SupabaseDirectChatSync.pageSize;
+        final known = current.map((m) => m.id).toSet();
+        final fresh = older.where((m) => known.add(m.id)).toList();
+        if (fresh.isNotEmpty) _messages.value = [...fresh, ...current];
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scrollController.hasClients) return;
+        _scrollController.jumpTo(
+          _scrollController.position.maxScrollExtent - before,
+        );
+      });
+    } catch (_) {
+      // Leave the thread as is; scrolling up again retries.
+    } finally {
+      if (mounted) setState(() => _loadingOlder = false);
+    }
   }
 
   void _handleMessagesChanged() {
@@ -532,14 +721,39 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 return ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(VanamSpacing.md),
-                  itemCount: messages.length,
+                  itemCount: messages.length + 1,
                   itemBuilder: (context, i) {
-                    final message = messages[i];
+                    if (i == 0) {
+                      if (_loadingOlder) {
+                        return const Padding(
+                          padding: EdgeInsets.all(VanamSpacing.sm),
+                          child: Center(
+                            child: SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        );
+                      }
+                      if (_hasOlder) {
+                        return Center(
+                          child: TextButton(
+                            onPressed: _loadOlder,
+                            child: const Text('Load earlier messages'),
+                          ),
+                        );
+                      }
+                      return const SizedBox(height: VanamSpacing.sm);
+                    }
+                    final message = messages[i - 1];
                     return RepaintBoundary(
                       child: message.kind == ChatMessageKind.system
                           ? _SystemEventNotice(message: message)
                           : _MessageBubble(
                               message: message,
+                              attachmentScope: _scope,
+                              attachmentScopeId: _scopeId,
                               onRetry: message.failed
                                   ? () => _retry(message)
                                   : null,
@@ -558,6 +772,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           _Composer(
             controller: _textController,
             onSend: _send,
+            onAttach: _showAttachMenu,
             hintText: widget.mode == ChatDetailMode.familyGroup
                 ? 'Message the family…'
                 : 'Message ${widget.groupName}…',
@@ -572,9 +787,15 @@ class _MessageBubble extends StatelessWidget {
   const _MessageBubble({
     required this.message,
     required this.showReadReceipt,
+    required this.attachmentScope,
+    required this.attachmentScopeId,
     this.onRetry,
     this.onDiscard,
   });
+
+  /// Which chat's key decrypts this message's photo or document.
+  final String attachmentScope;
+  final String attachmentScopeId;
 
   /// Only set for a message that failed to send: tap retries, long-press
   /// discards.
@@ -642,17 +863,24 @@ class _MessageBubble extends StatelessWidget {
                       ? null
                       : Border.all(color: palette.line),
                 ),
-                child: Text(
-                  message.text,
-                  style: TextStyle(
-                    color: message.isUnavailable && !message.isMine
-                        ? palette.inkMuted
-                        : textColor,
-                    fontStyle: message.isUnavailable
-                        ? FontStyle.italic
-                        : FontStyle.normal,
-                  ),
-                ),
+                child: message.attachment != null
+                    ? ChatAttachmentView(
+                        attachment: message.attachment!,
+                        scope: attachmentScope,
+                        scopeId: attachmentScopeId,
+                        textColor: textColor,
+                      )
+                    : Text(
+                        message.text,
+                        style: TextStyle(
+                          color: message.isUnavailable && !message.isMine
+                              ? palette.inkMuted
+                              : textColor,
+                          fontStyle: message.isUnavailable
+                              ? FontStyle.italic
+                              : FontStyle.normal,
+                        ),
+                      ),
               ),
             ),
           ),
@@ -743,11 +971,13 @@ class _Composer extends StatelessWidget {
   const _Composer({
     required this.controller,
     required this.onSend,
+    required this.onAttach,
     required this.hintText,
   });
 
   final TextEditingController controller;
   final VoidCallback onSend;
+  final VoidCallback onAttach;
   final String hintText;
 
   @override
@@ -768,6 +998,11 @@ class _Composer extends StatelessWidget {
         ),
         child: Row(
           children: [
+            IconButton(
+              onPressed: onAttach,
+              icon: Icon(Icons.attach_file, color: palette.inkMuted),
+              tooltip: 'Attach photos or documents',
+            ),
             Expanded(
               child: TextField(
                 controller: controller,
