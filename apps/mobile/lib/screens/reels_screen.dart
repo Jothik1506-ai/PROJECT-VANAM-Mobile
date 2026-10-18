@@ -7,6 +7,7 @@ import '../models/reel_item.dart';
 import '../theme/tokens.dart';
 import '../widgets/member_avatar.dart';
 import '../widgets/feedback_button.dart';
+import '../navigation/app_page.dart';
 
 /// Reels: every photo posted to the Home family feed, full-screen,
 /// swipe-vertically — the same posts and the same [HomeFeedRepository] as
@@ -206,7 +207,7 @@ class _ReelPageState extends State<_ReelPage> {
           top: VanamSpacing.md,
           left: VanamSpacing.md,
           child: FeedbackIconButton(
-            screen: 'Reels',
+            screen: AppPage.reels.label,
             color: Colors.white,
             itemId: post.id,
           ),

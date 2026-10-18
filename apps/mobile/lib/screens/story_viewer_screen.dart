@@ -6,6 +6,7 @@ import '../home/story_repository.dart';
 import '../media/vanam_cached_image.dart';
 import '../models/story.dart';
 import '../widgets/feedback_button.dart';
+import '../navigation/app_page.dart';
 
 /// Full-screen WhatsApp-style story viewer. [initialGroupIndex] is which
 /// person's stories to open on; tapping the right/left third of the
@@ -245,7 +246,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                       onPressed: _deleteCurrent,
                     ),
                   FeedbackIconButton(
-                    screen: 'Story viewer',
+                    screen: AppPage.storyViewer.label,
                     color: Colors.white,
                     itemId: _story.id,
                   ),

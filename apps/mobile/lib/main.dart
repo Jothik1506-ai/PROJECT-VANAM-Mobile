@@ -15,6 +15,7 @@ import 'screens/auth_gate.dart';
 import 'theme/theme_controller.dart';
 import 'theme/tokens.dart';
 import 'widgets/update_check_gate.dart';
+import 'navigation/app_page.dart';
 
 Future<void> main() async {
   await runZonedGuarded(
@@ -77,7 +78,7 @@ Future<void> main() async {
       await CrashReporting.setUser(
         Supabase.instance.client.auth.currentUser?.id,
       );
-      await CrashReporting.setContext(screen: 'Auth');
+      await CrashReporting.setContext(screen: AppPage.auth.label);
       await profileController.load(
         userId: Supabase.instance.client.auth.currentUser?.id,
       );

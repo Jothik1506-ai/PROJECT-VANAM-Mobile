@@ -4,6 +4,7 @@ import '../notifications/in_app_notification.dart';
 import '../notifications/in_app_notification_service.dart';
 import '../theme/tokens.dart';
 import '../widgets/feedback_button.dart';
+import '../navigation/app_page.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -45,7 +46,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       appBar: AppBar(
         title: const Text('Notifications'),
         actions: [
-          const FeedbackIconButton(screen: 'Notifications'),
+          FeedbackIconButton(screen: AppPage.notifications.label),
           TextButton(onPressed: _markAllRead, child: const Text('Mark read')),
         ],
       ),

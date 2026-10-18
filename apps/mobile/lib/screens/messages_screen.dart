@@ -10,6 +10,7 @@ import '../theme/tokens.dart';
 import '../widgets/feedback_button.dart';
 import '../widgets/conversation_tile.dart';
 import '../widgets/direct_conversation_tile.dart';
+import '../navigation/app_page.dart';
 
 /// Messages list: the one real Family Group thread, plus every real
 /// direct/personal chat this member is a participant in (see
@@ -146,7 +147,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                     ),
                   ),
                   const SizedBox(width: VanamSpacing.xs),
-                  const FeedbackIconButton(screen: 'Messages'),
+                  FeedbackIconButton(screen: AppPage.messages.label),
                 ],
               ),
             ),

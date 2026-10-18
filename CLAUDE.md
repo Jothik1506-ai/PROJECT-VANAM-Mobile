@@ -42,3 +42,11 @@
   `p_before` for older pages (migration 20261015120000). Never go back to
   `order by sent_at asc ... limit N`: that silently hides new messages once a
   chat passes the limit.
+
+## Pages and ids
+- Every screen is registered in `apps/mobile/lib/navigation/app_page.dart`
+  (`AppPage`): a unique, stable `id` (e.g. `tab.home`), a `label`, a kind and
+  a description; the four tabs also have a `tabIndex`. Feedback, Crashlytics
+  and the tab state keys all use it.
+- Add new screens there first. Never rename or reuse an `id` (reports are
+  matched on it). `test/app_page_test.dart` fails on duplicate ids or labels.

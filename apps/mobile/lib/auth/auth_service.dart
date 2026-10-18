@@ -7,6 +7,7 @@ import '../crypto/key_sync_service.dart';
 import '../diagnostics/crash_reporting.dart';
 import '../profile/profile_controller.dart';
 import 'family_profile.dart';
+import '../navigation/app_page.dart';
 
 // reportLogin being awaited with no timeout used to be able to hang the
 // whole login path indefinitely — this call has the same shape (an
@@ -118,7 +119,7 @@ class AuthService {
     keySyncService.clearSession();
     profileController.clearSession();
     await CrashReporting.setUser(null);
-    await CrashReporting.setContext(screen: 'Auth');
+    await CrashReporting.setContext(screen: AppPage.auth.label);
     await _client.auth.signOut();
   }
 

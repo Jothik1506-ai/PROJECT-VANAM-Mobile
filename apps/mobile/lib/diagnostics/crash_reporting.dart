@@ -1,6 +1,8 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
+import '../navigation/app_page.dart';
+
 class CrashReporting {
   const CrashReporting._();
 
@@ -18,6 +20,10 @@ class CrashReporting {
     if (Firebase.apps.isEmpty) return;
     try {
       await FirebaseCrashlytics.instance.setCustomKey('screen', screen);
+      await FirebaseCrashlytics.instance.setCustomKey(
+        'page_id',
+        AppPage.byLabel(screen)?.id ?? '',
+      );
       await FirebaseCrashlytics.instance.setCustomKey(
         'chat_scope',
         chatScope ?? '',

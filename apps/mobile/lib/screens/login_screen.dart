@@ -10,6 +10,7 @@ import 'forgot_password_screen.dart';
 import 'qr_scan_screen.dart';
 import 'set_display_name_screen.dart';
 import 'set_password_screen.dart';
+import '../navigation/app_page.dart';
 
 /// Login screen — username + password, admin-issued (see
 /// ARCHITECTURE.md Section 5). Still no open self-signup: only an admin can
@@ -121,7 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final palette = context.vanam;
     return Scaffold(
-      floatingActionButton: const FeedbackButton(screen: 'Login'),
+      floatingActionButton: FeedbackButton(screen: AppPage.login.label),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(

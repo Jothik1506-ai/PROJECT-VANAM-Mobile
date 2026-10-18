@@ -18,6 +18,7 @@ import '../theme/tokens.dart';
 import '../widgets/chat_attachment_view.dart';
 import '../widgets/feedback_button.dart';
 import 'admin_invites_screen.dart';
+import '../navigation/app_page.dart';
 
 enum ChatDetailMode { familyGroup, direct }
 
@@ -132,7 +133,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     activeChatTracker.setActive(_activeScope);
     _scrollController.addListener(_maybeLoadOlder);
     unawaited(
-      CrashReporting.setContext(screen: 'Chat', chatScope: _activeScope),
+      CrashReporting.setContext(screen: AppPage.chat.label, chatScope: _activeScope),
     );
     _messages.addListener(_handleMessagesChanged);
     _pending.addListener(_handleMessagesChanged);
@@ -143,7 +144,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   void dispose() {
     _disposed = true;
     activeChatTracker.clearIfActive(_activeScope);
-    unawaited(CrashReporting.setContext(screen: 'Messages'));
+    unawaited(CrashReporting.setContext(screen: AppPage.messages.label));
     _messages.removeListener(_handleMessagesChanged);
     _pending.removeListener(_handleMessagesChanged);
     final channel = _messagesChannel;
@@ -664,7 +665,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         ),
         actions: [
           FeedbackIconButton(
-            screen: 'Chat',
+            screen: AppPage.chat.label,
             color: palette.brand,
             chatId: widget.mode == ChatDetailMode.familyGroup
                 ? widget._controller!.groupId

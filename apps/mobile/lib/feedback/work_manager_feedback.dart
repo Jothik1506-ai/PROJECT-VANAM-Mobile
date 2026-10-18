@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../navigation/app_page.dart';
 
 class WorkManagerFeedback {
   const WorkManagerFeedback._();
@@ -46,6 +47,8 @@ class WorkManagerFeedback {
               'App: Mobile App',
               'Version: ${packageInfo.version} (${packageInfo.buildNumber})',
               'Screen: $screen',
+              if (AppPage.byLabel(screen) != null)
+                'Page ID: ${AppPage.byLabel(screen)!.id}',
               if (userId != null) 'User ID: $userId',
               if (itemId != null) 'Item ID: $itemId',
               if (chatId != null) 'Chat ID: $chatId',
@@ -56,7 +59,8 @@ class WorkManagerFeedback {
               '',
               feedback.trim(),
             ].join('\n'),
-            'pageUrl': 'app://vanam-mobile/${_screenSlug(screen)}',
+            'pageUrl':
+                'app://vanam-mobile/${AppPage.byLabel(screen)?.id ?? _screenSlug(screen)}',
             'platform': '${Platform.operatingSystem} ${Platform.version}',
           }),
         );

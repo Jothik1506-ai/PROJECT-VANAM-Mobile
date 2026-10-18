@@ -22,6 +22,7 @@ import '../widgets/vanam_logo.dart';
 import '../widgets/web_update_card.dart';
 import 'notifications_screen.dart';
 import 'story_viewer_screen.dart';
+import '../navigation/app_page.dart';
 
 /// Home feed screen.
 /// Web updates are sourced from the current VANAM web hub list. Family posts
@@ -538,7 +539,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                   icon: const Icon(Icons.close),
                   tooltip: 'Close comments',
                 ),
-                FeedbackIconButton(screen: 'Comments', itemId: widget.post.id),
+                FeedbackIconButton(screen: AppPage.comments.label, itemId: widget.post.id),
               ],
             ),
             const SizedBox(height: VanamSpacing.md),
@@ -850,7 +851,7 @@ class _HomeAppBar extends StatelessWidget {
             ),
             tooltip: searching ? 'Close search' : 'Search',
           ),
-          const FeedbackIconButton(screen: 'Home'),
+          FeedbackIconButton(screen: AppPage.home.label),
           FutureBuilder<int>(
             future: unreadNotifications,
             builder: (context, snapshot) {

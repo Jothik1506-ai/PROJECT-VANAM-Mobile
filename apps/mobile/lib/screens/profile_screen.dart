@@ -10,6 +10,7 @@ import '../widgets/feedback_button.dart';
 import '../widgets/vanam_logo.dart';
 import 'change_password_screen.dart';
 import 'auth_gate.dart';
+import '../navigation/app_page.dart';
 
 /// Profile screen.
 ///
@@ -146,10 +147,10 @@ class _ProfileHeader extends StatelessWidget {
                 ],
               ),
             ),
-            const Positioned(
+            Positioned(
               top: VanamSpacing.xs,
               right: VanamSpacing.xs,
-              child: FeedbackIconButton(screen: 'Profile', color: Colors.white),
+              child: FeedbackIconButton(screen: AppPage.profile.label, color: Colors.white),
             ),
           ],
         );

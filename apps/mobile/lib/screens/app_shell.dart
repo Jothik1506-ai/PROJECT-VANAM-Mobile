@@ -9,6 +9,7 @@ import '../crypto/key_sync_service.dart';
 import '../diagnostics/crash_reporting.dart';
 import '../notifications/push_notification_service.dart';
 import '../profile/profile_controller.dart';
+import '../navigation/app_page.dart';
 import '../widgets/feedback_button.dart';
 import '../widgets/vanam_bottom_nav.dart';
 import '../work_manager/work_manager_activity.dart';
@@ -36,7 +37,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   Timer? _keyResyncTimer;
   bool _checkingAccess = false;
 
-  static const _screenLabels = ['Reels', 'Messages', 'Home', 'Profile'];
+  // Tab metadata (label + unique page id) lives in AppPage.
+  static final _screenLabels = [for (final t in AppPage.tabs) t.label];
 
   // Previously all four tabs were built (and started fetching data +
   // loading images) the instant AppShell mounted, regardless of which one
@@ -48,6 +50,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   Widget _screenFor(int index) {
     return _builtScreens[index] ??= _KeepAlivePage(
+      key: PageStorageKey<String>(AppPage.tabs[index].id),
       child: switch (index) {
         0 => const ReelsScreen(),
         1 => MessagesScreen(isAdmin: widget.isAdmin),
@@ -218,7 +221,7 @@ enum _GlobalAction { invite, feedback }
 /// (which would otherwise re-run each screen's fetch every time the user
 /// swipes back to it).
 class _KeepAlivePage extends StatefulWidget {
-  const _KeepAlivePage({required this.child});
+  const _KeepAlivePage({super.key, required this.child});
 
   final Widget child;
 
