@@ -254,7 +254,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         _syncStatus = null;
         _keyMissingOnDevice = false;
       });
-    } catch (error) {
+    } catch (error, stack) {
+      unawaited(
+        CrashReporting.recordError(error, stack, reason: 'chat_sync_failed'),
+      );
       if (!mounted) return;
       setState(() {
         _keyMissingOnDevice = error is EncryptionKeyMissingOnDeviceException;
@@ -262,9 +265,31 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             ? 'Encryption key is missing on this device.'
             : error is TimeoutException
             ? 'Message sync is taking too long. Check your connection.'
-            : 'Could not sync messages. Your saved messages are still available.';
+            : 'Could not sync messages (${_shortReason(error)}). '
+                  'Your saved messages are still available.';
       });
     }
+  }
+
+  /// A few words saying WHY a sync failed, so a report like "could not sync"
+  /// can be traced to the real cause (server function missing, signed out,
+  /// no connection...) instead of one generic message.
+  static String _shortReason(Object error) {
+    if (error is PostgrestException) {
+      final code = error.code == null ? '' : '${error.code}: ';
+      final message = error.message.length > 70
+          ? '${error.message.substring(0, 70)}…'
+          : error.message;
+      return 'server $code$message';
+    }
+    if (error is AuthException) return 'sign in again';
+    final text = error.toString();
+    if (text.contains('SocketException') ||
+        text.contains('ClientException') ||
+        text.contains('Failed host lookup')) {
+      return 'no connection';
+    }
+    return error.runtimeType.toString();
   }
 
   Future<void> _showAttachMenu() async {
@@ -706,7 +731,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       onPressed: _confirmResetEncryption,
                       child: const Text('Reset'),
                     )
-                  else if (widget.mode == ChatDetailMode.direct)
+                  else
                     TextButton(
                       onPressed: _attachSupabaseSync,
                       child: const Text('Retry'),
