@@ -115,6 +115,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   bool _loadingOlder = false;
   // Direct mode tracks this itself; family-group mode asks the controller.
   bool _directHasOlder = false;
+  // Oldest sent_at fetched so far (hidden messages included); only ever
+  // moves back in time so a refresh of the newest page doesn't reset it.
+  DateTime? _directCursor;
+
+  void _adoptDirectCursor(SupabaseDirectChatSync sync) {
+    final oldest = sync.lastOldestSentAt;
+    if (_directCursor == null ||
+        (oldest != null && oldest.isBefore(_directCursor!))) {
+      _directCursor = oldest;
+      _directHasOlder = sync.lastPageFull;
+    }
+  }
 
   /// The scope key this screen registers with activeChatTracker so a
   /// foreground push for this exact chat gets suppressed (see
@@ -205,8 +217,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       if (_disposed) return;
       if (initialRequestId == _refreshRequestId) {
         _messages.value = initialMessages;
-        _directHasOlder =
-            initialMessages.length >= SupabaseDirectChatSync.pageSize;
+        _adoptDirectCursor(sync);
       }
       // Mark anything already sitting unread as read now that this screen
       // is open, then again after every realtime refresh — cheap/idempotent
@@ -226,6 +237,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           );
           if (_disposed || requestId != _refreshRequestId) return;
           _messages.value = _mergeNewestPage(_messages.value, messages);
+          _adoptDirectCursor(sync);
           unawaited(sync.markRead(conversationId));
         },
       );
@@ -493,14 +505,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         await widget._controller!.loadOlder();
       } else {
         final sync = _directSync;
+        final cursor = _directCursor;
+        if (sync == null || cursor == null) return;
         final current = _messages.value;
-        if (sync == null || current.isEmpty) return;
         final older = await sync.fetchMessages(
           conversationId: widget.conversationId!,
-          before: current.first.sentAt,
+          before: cursor,
         );
         if (_disposed) return;
-        _directHasOlder = older.length >= SupabaseDirectChatSync.pageSize;
+        _directCursor = sync.lastOldestSentAt ?? cursor;
+        _directHasOlder = sync.lastPageFull;
         final known = current.map((m) => m.id).toSet();
         final fresh = older.where((m) => known.add(m.id)).toList();
         if (fresh.isNotEmpty) _messages.value = [...fresh, ...current];
@@ -748,6 +762,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     }
                     final message = messages[i - 1];
                     return RepaintBoundary(
+                      key: ValueKey(message.id),
                       child: message.kind == ChatMessageKind.system
                           ? _SystemEventNotice(message: message)
                           : _MessageBubble(

@@ -2,9 +2,12 @@
 --
 -- BUG FIX: list_messages / list_direct_messages ordered `sent_at asc` with a
 -- limit, so once a chat passed 100 messages they returned the OLDEST 100
--- and newer messages never appeared. Both now return the NEWEST page and
--- accept p_before to fetch older pages ("load earlier messages"). The app
--- sorts each page ascending itself.
+-- and newer messages never appeared. Both now select the NEWEST page and
+-- accept p_before to fetch older pages ("load earlier messages").
+--
+-- Each page is still RETURNED oldest-first, exactly like before, so app
+-- builds that predate this migration keep rendering in the right order (and
+-- get the cap fix for free).
 --
 -- list_direct_conversations now returns the encrypted last message body
 -- (so the phone can decrypt a real preview — "Photo", "sure, 6pm" — instead
@@ -31,22 +34,27 @@ security definer
 stable
 set search_path = public, extensions
 as $$
-  select
-    m.id,
-    m.group_id,
-    m.sender_id,
-    coalesce(p.display_name, 'Family Member') as sender_name,
-    encode(m.body, 'base64') as message_text,
-    m.sent_at,
-    m.kind
-  from public.messages m
-  join public.profiles p on p.id = m.sender_id
-  where
-    public.is_active_member()
-    and m.group_id = p_group_id
-    and (p_before is null or m.sent_at < p_before)
-  order by m.sent_at desc
-  limit greatest(1, least(p_message_limit, 500));
+  select t.id, t.group_id, t.sender_id, t.sender_name, t.message_text,
+         t.sent_at, t.kind
+  from (
+    select
+      m.id,
+      m.group_id,
+      m.sender_id,
+      coalesce(p.display_name, 'Family Member') as sender_name,
+      encode(m.body, 'base64') as message_text,
+      m.sent_at,
+      m.kind
+    from public.messages m
+    join public.profiles p on p.id = m.sender_id
+    where
+      public.is_active_member()
+      and m.group_id = p_group_id
+      and (p_before is null or m.sent_at < p_before)
+    order by m.sent_at desc
+    limit greatest(1, least(p_message_limit, 500))
+  ) t
+  order by t.sent_at asc;
 $$;
 
 drop function if exists public.list_direct_messages(uuid, integer);
@@ -69,22 +77,27 @@ security definer
 stable
 set search_path = public, extensions
 as $$
-  select
-    dm.id,
-    dm.conversation_id,
-    dm.sender_id,
-    coalesce(p.display_name, 'Family Member') as sender_name,
-    encode(dm.body, 'base64') as message_text,
-    dm.sent_at,
-    dm.read_at
-  from public.direct_messages dm
-  join public.profiles p on p.id = dm.sender_id
-  where
-    public.is_conversation_participant(p_conversation_id)
-    and dm.conversation_id = p_conversation_id
-    and (p_before is null or dm.sent_at < p_before)
-  order by dm.sent_at desc
-  limit greatest(1, least(p_message_limit, 500));
+  select t.id, t.conversation_id, t.sender_id, t.sender_name, t.message_text,
+         t.sent_at, t.read_at
+  from (
+    select
+      dm.id,
+      dm.conversation_id,
+      dm.sender_id,
+      coalesce(p.display_name, 'Family Member') as sender_name,
+      encode(dm.body, 'base64') as message_text,
+      dm.sent_at,
+      dm.read_at
+    from public.direct_messages dm
+    join public.profiles p on p.id = dm.sender_id
+    where
+      public.is_conversation_participant(p_conversation_id)
+      and dm.conversation_id = p_conversation_id
+      and (p_before is null or dm.sent_at < p_before)
+    order by dm.sent_at desc
+    limit greatest(1, least(p_message_limit, 500))
+  ) t
+  order by t.sent_at asc;
 $$;
 
 drop function if exists public.list_direct_conversations();

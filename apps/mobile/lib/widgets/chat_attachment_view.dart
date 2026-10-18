@@ -39,6 +39,14 @@ class _ChatAttachmentViewState extends State<ChatAttachmentView> {
     if (widget.attachment.isImage) _image = _load();
   }
 
+  @override
+  void didUpdateWidget(ChatAttachmentView old) {
+    super.didUpdateWidget(old);
+    if (old.attachment.path != widget.attachment.path) {
+      _image = widget.attachment.isImage ? _load() : null;
+    }
+  }
+
   Future<Uint8List> _load() => chatAttachmentService.fetch(
     scope: widget.scope,
     scopeId: widget.scopeId,

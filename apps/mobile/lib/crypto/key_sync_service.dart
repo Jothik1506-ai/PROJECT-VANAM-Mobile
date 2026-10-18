@@ -110,6 +110,29 @@ class KeySyncService {
         .timeout(_kRpcTimeout);
   }
 
+  /// Read-only variant of [getScopeKey] for UI previews: returns the key
+  /// only if this device can already open its own wrap. Never creates a key,
+  /// reseals for other members, or deletes anything.
+  Future<Uint8List?> peekScopeKey({
+    required String scope,
+    required String scopeId,
+  }) async {
+    final cacheKey = _cacheKey(scope, scopeId);
+    final cached = _cache[cacheKey];
+    if (cached != null) return cached;
+    await ensurePublicKeyUploaded();
+    final wrap = await _client
+        .rpc<String?>(
+          'fetch_my_key_wrap',
+          params: {'p_scope': scope, 'p_scope_id': scopeId},
+        )
+        .timeout(_kRpcTimeout);
+    if (wrap == null) return null;
+    final key = await _e2ee.unsealMyKey(wrap);
+    if (key != null) _cache[cacheKey] = key;
+    return key;
+  }
+
   /// Returns the scope's plaintext symmetric key, or null if this device
   /// doesn't have it yet and no one else has created it either — a state
   /// that resolves itself once another already-keyed device calls

@@ -58,6 +58,8 @@ class ChatController extends ValueNotifier<List<ChatMessage>> {
     _loaded = false;
     _accountId = 'signed-out';
     _sync = null;
+    _cursor = null;
+    hasOlder = false;
     value = const [];
   }
 
@@ -80,23 +82,35 @@ class ChatController extends ValueNotifier<List<ChatMessage>> {
         ? const <ChatMessage>[]
         : value.where((m) => m.sentAt.isBefore(newestKnown)).toList();
     value = [...older, ...remoteMessages];
-    hasOlder = remoteMessages.length >= SupabaseChatSync.pageSize;
+    _adoptPageCursor(sync);
     await _persist();
   }
 
   /// Whether another page of history may exist before what's loaded.
   bool hasOlder = false;
 
-  /// Loads the page before the oldest message shown. Returns how many were
-  /// added (0 means the start of the chat was reached).
+  // Oldest sent_at fetched from the server so far (hidden messages
+  // included), the cursor for the next "load earlier" request. Only ever
+  // moves back in time, so a refresh of the newest page doesn't reset it.
+  DateTime? _cursor;
+
+  void _adoptPageCursor(SupabaseChatSync sync) {
+    final oldest = sync.lastOldestSentAt;
+    if (_cursor == null || (oldest != null && oldest.isBefore(_cursor!))) {
+      _cursor = oldest;
+      hasOlder = sync.lastPageFull;
+    }
+  }
+
+  /// Loads the page before the oldest message fetched. Returns how many
+  /// were added (0 can also mean the page held only unreadable messages).
   Future<int> loadOlder() async {
     final sync = _sync;
-    if (sync == null || value.isEmpty || !hasOlder) return 0;
-    final older = await sync.fetchMessages(
-      groupId: groupId,
-      before: value.first.sentAt,
-    );
-    hasOlder = older.length >= SupabaseChatSync.pageSize;
+    final cursor = _cursor;
+    if (sync == null || cursor == null || !hasOlder) return 0;
+    final older = await sync.fetchMessages(groupId: groupId, before: cursor);
+    _cursor = sync.lastOldestSentAt ?? cursor;
+    hasOlder = sync.lastPageFull;
     if (older.isEmpty) return 0;
     final known = value.map((m) => m.id).toSet();
     final fresh = older.where((m) => known.add(m.id)).toList();

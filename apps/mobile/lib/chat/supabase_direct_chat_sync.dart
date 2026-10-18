@@ -42,7 +42,10 @@ class SupabaseDirectChatSync {
     final cipher = conversation.lastMessageText;
     if (cipher == null || cipher.isEmpty) return null;
     try {
-      final key = await _conversationKey(conversation.conversationId);
+      final key = await keySyncService.peekScopeKey(
+        scope: 'direct',
+        scopeId: conversation.conversationId,
+      );
       if (key == null) return null;
       return _e2ee.decryptMessage(ciphertextBase64: cipher, symmetricKey: key);
     } catch (_) {
@@ -53,6 +56,13 @@ class SupabaseDirectChatSync {
   /// Messages per page. The server returns the newest page; pass [before]
   /// (the oldest sent_at already shown) to load the page before it.
   static const pageSize = 100;
+
+  /// About the most recent fetchMessages call, measured BEFORE hidden
+  /// (undecryptable) messages are filtered out: whether the server page was
+  /// full (so an older page may exist) and the oldest sent_at it contained
+  /// (the cursor for the next "load earlier" request).
+  bool lastPageFull = false;
+  DateTime? lastOldestSentAt;
 
   Future<List<ChatMessage>> fetchMessages({
     required String conversationId,
@@ -67,6 +77,16 @@ class SupabaseDirectChatSync {
       },
     );
     final typed = rows.whereType<Map<String, dynamic>>().toList();
+    lastPageFull = typed.length >= pageSize;
+    lastOldestSentAt = typed.isEmpty
+        ? null
+        : typed
+              .map((r) => DateTime.tryParse(r['sent_at'] as String? ?? ''))
+              .whereType<DateTime>()
+              .fold<DateTime?>(
+                null,
+                (min, t) => min == null || t.isBefore(min) ? t : min,
+              );
     var key = await _conversationKey(conversationId);
     var messages = await _decodeRows(typed, key);
 
