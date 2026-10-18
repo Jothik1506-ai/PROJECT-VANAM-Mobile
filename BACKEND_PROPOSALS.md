@@ -50,3 +50,23 @@ the function, revoke execution from `PUBLIC`/`anon`, and grant it only to
 `authenticated`. The Flutter model already treats the field as optional and
 defaults to zero, so deploying the RPC change will enable badges without a
 coordinated app release.
+
+## Chat attachments deploy
+
+Chat photos and documents are sent as an encrypted message whose decrypted
+body is `vanam:att:1:{...}` (a JSON pointer to the encrypted file in storage).
+Older clients (1.0.1+29 and earlier) don't know this format and show that raw
+`vanam:att:1:{...}` text instead of the photo or document.
+
+Deploy in this exact order:
+
+1. Apply `supabase/migrations/20261015090000_chat_attachments.sql` (storage
+   bucket and policies the new app uploads to).
+2. Release the new app build that sends and renders attachments.
+3. Apply `supabase/migrations/20261015120000_chat_history_paging.sql`. It is
+   now additive: it adds `list_messages_page` / `list_direct_messages_page`
+   and only adds columns to `list_direct_conversations`, leaving
+   `list_messages` / `list_direct_messages` untouched, so it is safe to apply
+   at any time. Note: the new app calls the `*_page` functions to load chat
+   history, so apply it no later than the moment the release goes live;
+   applying it before step 2 is also fine and avoids any gap.

@@ -5,9 +5,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../chat/attachment_picker.dart';
 import '../chat/attachment_service.dart';
-import '../chat/chat_attachment.dart';
 import '../chat/chat_controller.dart';
 import '../chat/chat_message.dart';
+import '../chat/chat_page.dart';
 import '../chat/supabase_chat_sync.dart';
 import '../chat/supabase_direct_chat_sync.dart';
 import '../crypto/key_sync_service.dart';
@@ -115,18 +115,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   bool _loadingOlder = false;
   // Direct mode tracks this itself; family-group mode asks the controller.
   bool _directHasOlder = false;
-  // Oldest sent_at fetched so far (hidden messages included); only ever
-  // moves back in time so a refresh of the newest page doesn't reset it.
-  DateTime? _directCursor;
-
-  void _adoptDirectCursor(SupabaseDirectChatSync sync) {
-    final oldest = sync.lastOldestSentAt;
-    if (_directCursor == null ||
-        (oldest != null && oldest.isBefore(_directCursor!))) {
-      _directCursor = oldest;
-      _directHasOlder = sync.lastPageFull;
-    }
-  }
+  ChatPageCursor? _directCursor;
+  bool _directLoadedOlder = false;
 
   /// The scope key this screen registers with activeChatTracker so a
   /// foreground push for this exact chat gets suppressed (see
@@ -208,7 +198,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       final conversationId = widget.conversationId!;
       final sync = SupabaseDirectChatSync(client);
       final initialRequestId = ++_refreshRequestId;
-      final initialMessages = await sync.fetchMessages(
+      final initialPage = await sync.fetchMessages(
         conversationId: conversationId,
       );
       // _messages is disposed in dispose() for direct mode — a screen
@@ -216,8 +206,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       // it afterward.
       if (_disposed) return;
       if (initialRequestId == _refreshRequestId) {
-        _messages.value = initialMessages;
-        _adoptDirectCursor(sync);
+        _messages.value = initialPage.messages;
+        _directHasOlder = initialPage.hasOlder;
+        _directCursor = initialPage.cursor;
       }
       // Mark anything already sitting unread as read now that this screen
       // is open, then again after every realtime refresh — cheap/idempotent
@@ -232,12 +223,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           // stale response clobber a newer one — only the response
           // matching the most recently *started* request gets applied.
           final requestId = ++_refreshRequestId;
-          final messages = await sync.fetchMessages(
-            conversationId: conversationId,
-          );
+          final page = await sync.fetchMessages(conversationId: conversationId);
           if (_disposed || requestId != _refreshRequestId) return;
-          _messages.value = _mergeNewestPage(_messages.value, messages);
-          _adoptDirectCursor(sync);
+          _messages.value = ChatPage.mergeNewest(
+            _messages.value,
+            page.messages,
+            serverEmpty: page.cursor == null,
+          );
+          // Once older pages are loaded, keep their deeper cursor.
+          if (!_directLoadedOlder) {
+            _directCursor = page.cursor;
+            _directHasOlder = page.hasOlder;
+          }
           unawaited(sync.markRead(conversationId));
         },
       );
@@ -341,9 +338,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           ),
         );
       }
-      for (final item in result.items) {
-        unawaited(_sendAttachment(item));
-      }
+      unawaited(_sendAttachments(result.items));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -352,20 +347,29 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
   }
 
-  /// Shows the attachment in the thread right away (clock icon), then
-  /// encrypts, uploads and sends it in the background.
-  Future<void> _sendAttachment(PickedAttachment item) async {
-    final pendingMessage = ChatMessage(
-      id: 'pending-${DateTime.now().microsecondsSinceEpoch}-${_uploads.length}',
-      senderName: profileController.value.displayName,
-      text: item.placeholderText,
-      sentAt: DateTime.now(),
-      isMine: true,
-      pending: true,
-    );
-    _uploads[pendingMessage.id] = item;
-    _pending.value = [..._pending.value, pendingMessage];
-    await _deliver(pendingMessage);
+  /// Shows every picked attachment in the thread right away (clock icon),
+  /// then reads, encrypts, uploads and sends them one at a time so only one
+  /// file's bytes are in memory at once.
+  Future<void> _sendAttachments(List<PickedAttachment> items) async {
+    final queued = <ChatMessage>[];
+    for (final item in items) {
+      final pendingMessage = ChatMessage(
+        id: 'pending-${DateTime.now().microsecondsSinceEpoch}-${_uploads.length}',
+        senderName: profileController.value.displayName,
+        text: item.placeholderText,
+        sentAt: DateTime.now(),
+        isMine: true,
+        pending: true,
+      );
+      _uploads[pendingMessage.id] = item;
+      queued.add(pendingMessage);
+    }
+    if (queued.isEmpty) return;
+    _pending.value = [..._pending.value, ...queued];
+    for (final pendingMessage in queued) {
+      if (_disposed) return;
+      await _deliver(pendingMessage);
+    }
   }
 
   Future<void> _send() async {
@@ -409,7 +413,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         upload.uploaded ??= await chatAttachmentService.upload(
           scope: _scope,
           scopeId: _scopeId,
-          bytes: upload.bytes,
+          bytes: await upload.readBytes(),
           name: upload.name,
           mime: upload.mime,
           kind: upload.kind,
@@ -496,17 +500,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _pending.value = _pending.value.where((m) => m.id != id).toList();
   }
 
-  /// Keeps already-loaded older pages when the newest page is refetched.
-  static List<ChatMessage> _mergeNewestPage(
-    List<ChatMessage> current,
-    List<ChatMessage> newest,
-  ) {
-    if (newest.isEmpty) return newest;
-    final cutoff = newest.first.sentAt;
-    final older = current.where((m) => m.sentAt.isBefore(cutoff));
-    return [...older, ...newest];
-  }
-
   bool get _hasOlder => widget.mode == ChatDetailMode.familyGroup
       ? widget._controller!.hasOlder
       : _directHasOlder;
@@ -532,16 +525,22 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         final sync = _directSync;
         final cursor = _directCursor;
         if (sync == null || cursor == null) return;
-        final current = _messages.value;
-        final older = await sync.fetchMessages(
+        final page = await sync.fetchMessages(
           conversationId: widget.conversationId!,
           before: cursor,
         );
         if (_disposed) return;
-        _directCursor = sync.lastOldestSentAt ?? cursor;
-        _directHasOlder = sync.lastPageFull;
+        _directHasOlder = page.hasOlder;
+        if (page.cursor != null) {
+          _directCursor = page.cursor;
+          _directLoadedOlder = true;
+        }
+        final current = _messages.value;
+        final older = page.messages;
         final known = current.map((m) => m.id).toSet();
-        final fresh = older.where((m) => known.add(m.id)).toList();
+        final fresh = older
+            .where((m) => !m.isUnavailable && known.add(m.id))
+            .toList();
         if (fresh.isNotEmpty) _messages.value = [...fresh, ...current];
       }
       WidgetsBinding.instance.addPostFrameCallback((_) {

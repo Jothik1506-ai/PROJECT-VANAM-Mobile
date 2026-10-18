@@ -9,6 +9,7 @@ class DirectConversation {
     required this.otherDisplayName,
     this.lastMessageText,
     this.lastMessageAt,
+    this.lastMessageBody,
     this.lastMessageSenderId,
     this.unreadCount = 0,
   });
@@ -18,6 +19,11 @@ class DirectConversation {
   final String otherDisplayName;
   final String? lastMessageText;
   final DateTime? lastMessageAt;
+
+  /// The last message's ciphertext (base64), decrypted on the device for
+  /// the chat list preview. [lastMessageText] stays the server's plain
+  /// "New message" placeholder so older app versions keep working.
+  final String? lastMessageBody;
 
   /// Who sent the last message — lets the list prefix "You: ".
   final String? lastMessageSenderId;
@@ -33,6 +39,7 @@ class DirectConversation {
       lastMessageAt: DateTime.tryParse(
         json['last_message_at'] as String? ?? '',
       ),
+      lastMessageBody: json['last_message_body'] as String?,
       lastMessageSenderId: json['last_message_sender_id'] as String?,
       unreadCount: json['unread_count'] as int? ?? 0,
     );

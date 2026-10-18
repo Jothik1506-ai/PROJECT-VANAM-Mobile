@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../crypto/e2ee_service.dart';
 import '../crypto/key_sync_service.dart';
 import 'chat_message.dart';
+import 'chat_page.dart';
 
 class SupabaseChatSync {
   SupabaseChatSync(this._client);
@@ -23,39 +24,22 @@ class SupabaseChatSync {
   }
 
   /// Messages per page. The server returns the newest page; pass [before]
-  /// (the oldest sent_at already shown) to load the page before it.
+  /// (the previous page's raw-row cursor) to load the page before it.
   static const pageSize = 100;
 
-  /// About the most recent fetchMessages call, measured BEFORE hidden
-  /// (undecryptable) messages are filtered out: whether the server page was
-  /// full (so an older page may exist) and the oldest sent_at it contained
-  /// (the cursor for the next "load earlier" request).
-  bool lastPageFull = false;
-  DateTime? lastOldestSentAt;
-
-  Future<List<ChatMessage>> fetchMessages({
+  Future<ChatPage> fetchMessages({
     String groupId = 'family-group',
-    DateTime? before,
+    ChatPageCursor? before,
   }) async {
     final rows = await _client.rpc<List<dynamic>>(
-      'list_messages',
+      'list_messages_page',
       params: {
         'p_group_id': groupId,
         'p_message_limit': pageSize,
-        if (before != null) 'p_before': before.toUtc().toIso8601String(),
+        ...?before?.toParams(),
       },
     );
     final typed = rows.whereType<Map<String, dynamic>>().toList();
-    lastPageFull = typed.length >= pageSize;
-    lastOldestSentAt = typed.isEmpty
-        ? null
-        : typed
-              .map((r) => DateTime.tryParse(r['sent_at'] as String? ?? ''))
-              .whereType<DateTime>()
-              .fold<DateTime?>(
-                null,
-                (min, t) => min == null || t.isBefore(min) ? t : min,
-              );
     var key = await _groupKey();
     var messages = await _decodeRows(typed, key);
 
@@ -73,8 +57,13 @@ class SupabaseChatSync {
     // Old ciphertext whose key was intentionally discarded has no recovery
     // value. Do not keep rendering permanent encryption placeholders while
     // the family starts a fresh chat history.
-    return messages.where((message) => !message.isUnavailable).toList()
-      ..sort((a, b) => a.sentAt.compareTo(b.sentAt));
+    final paging = ChatPage.pagingFromRows(typed, pageSize);
+    return ChatPage(
+      messages: messages.where((message) => !message.isUnavailable).toList()
+        ..sort((a, b) => a.sentAt.compareTo(b.sentAt)),
+      hasOlder: paging.hasOlder,
+      cursor: paging.cursor,
+    );
   }
 
   Future<List<ChatMessage>> _decodeRows(

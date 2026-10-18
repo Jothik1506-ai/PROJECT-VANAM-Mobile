@@ -14,15 +14,17 @@ and fixes one serious bug found while reading the message RPCs.
 **What was wrong.** `list_messages` and `list_direct_messages` sorted
 messages oldest-first and then took the first 100. Once a chat had more than
 100 messages, the app only ever received the *oldest* 100, so anything newer
-never appeared on screen. The family group is the first chat that will hit
-this.
+never appeared on screen.
 
-**Fix.** Both RPCs now select the **newest** page and accept `p_before` to
-fetch the page before a given time. Each page is still returned oldest-first,
-so app builds from before this fix keep showing messages in the right order
-(and also stop losing new messages).
+**Fix.** The migration is **additive**: the two old functions are left exactly
+as they are, so installed apps (1.0.1+29 and earlier) keep working. New apps
+call new functions, `list_messages_page` and `list_direct_messages_page`,
+which return the newest page and take `p_before` (plus a tiebreaker id) to
+fetch older pages. Installed apps still have the 100-message cap until they
+update.
 
-Migration: `supabase/migrations/20261015120000_chat_history_paging.sql`.
+Migration: `supabase/migrations/20261015120000_chat_history_paging.sql`
+(safe to apply before or after the app release).
 
 ## 2. New: load earlier messages
 
@@ -52,22 +54,24 @@ on this phone yet, the row falls back to "Encrypted message".
 
 ---
 
-## 4. Review pass: chat bugs found and fixed
+## 4. Review pass
 
-A read-through of the chat code found these. All are fixed.
+Beyond the paging fix above, two small guards were added after a code review:
 
-| Bug | Effect | Fix |
-|---|---|---|
-| Paging RPC first returned newest-first | Phones on the previous build would have shown a chat in reverse order | Server returns each page oldest-first |
-| "Load earlier" decided there were more pages from the number of messages **shown**, and moved its cursor by the oldest message **shown** | After an encryption reset, pages made of unreadable (hidden) messages ended paging early or re-requested the same page forever | Paging now uses the raw server page (full or not, oldest time) |
-| Message bubbles had no key | After loading earlier messages, a photo or document could show the file from a different message | Each bubble is keyed by its message id; the attachment view reloads if its file changes |
-| Chat-list preview used the normal key lookup | Opening the Messages list could create or reseal chat keys as a side effect | Previews use a read-only lookup that never creates, reseals or deletes keys |
+- Each chat bubble is keyed by its message id, so after loading earlier
+  messages a photo or document can never show the file of a different message.
+- The chat-list preview uses a read-only key lookup, so opening the Messages
+  list can never create or reseal chat keys.
+- When a chat fails to sync, the banner now says why (for example
+  `server 42883: function ... does not exist`, `no connection`) and has a
+  Retry button in the family group as well as direct chats. The error is also
+  logged to Crashlytics.
 
 ## Files
 
 | File | Change |
 |---|---|
-| `supabase/migrations/20261015120000_chat_history_paging.sql` | Newest-first paging with `p_before`; `list_direct_conversations` returns encrypted last body, its sender, and `unread_count` |
+| `supabase/migrations/20261015120000_chat_history_paging.sql` | Adds `list_messages_page` / `list_direct_messages_page`; `list_direct_conversations` gains the encrypted last body, its sender and `unread_count` |
 | `apps/mobile/lib/chat/supabase_chat_sync.dart` | `fetchMessages(before:)`, `pageSize` |
 | `apps/mobile/lib/chat/supabase_direct_chat_sync.dart` | `fetchMessages(before:)`, `pageSize`, `decryptPreview()` |
 | `apps/mobile/lib/chat/chat_controller.dart` | `loadOlder()`, `hasOlder`; refresh keeps older pages |
@@ -80,9 +84,8 @@ A read-through of the chat code found these. All are fixed.
 ## Release checklist
 
 1. **Apply the migration** `20261015120000_chat_history_paging.sql` on
-   Supabase before shipping this build. The RPC signatures change
-   (`p_before` added, `list_direct_conversations` gains two columns).
-   Older app builds keep working: they don't pass `p_before` and ignore the
+   Supabase (before or after the release; it is additive).
+   Older app builds keep working: they keep calling the old functions and ignore the
    extra columns.
 2. If not applied yet, also apply `20261015090000_chat_attachments.sql`.
 3. `flutter pub get`, `flutter analyze`, `flutter test`.
